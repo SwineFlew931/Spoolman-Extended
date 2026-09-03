@@ -11,7 +11,11 @@
 	import Scale from '@lucide/svelte/icons/scale';
 	import Printer from '@lucide/svelte/icons/printer';
 	import Archive from '@lucide/svelte/icons/archive';
+	import Nfc from '@lucide/svelte/icons/nfc';
 	import ArchiveRestore from '@lucide/svelte/icons/archive-restore';
+	import { parseCardUids, unbindUid } from '$lib/api/nfc';
+	import { nfc } from '$lib/stores/nfc.svelte';
+	import { ui } from '$lib/stores/ui.svelte';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import ArrowLeftRight from '@lucide/svelte/icons/arrow-left-right';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
@@ -223,8 +227,38 @@
 	}
 	// Optimistic flip, then persist. The list filters archived spools out by
 	// default, so unarchiving from here is the only way back once one is hidden.
+	// Archiving frees the spool's tags for reuse, which is a real loss of data if
+	// it was not intended — so a spool with bindings asks first. Unarchiving, and
+	// archiving a spool with no tag, are unchanged.
+	let confirmArchiveOpen = $state(false);
+	let archiving = $state(false);
+	const boundUids = $derived(parseCardUids(spool.extra));
+
 	function toggleArchived() {
-		const next = !spool.archived;
+		if (!spool.archived && boundUids.length > 0) {
+			confirmArchiveOpen = true;
+			return;
+		}
+		setArchived(!spool.archived);
+	}
+
+	async function archiveAndFreeTags() {
+		archiving = true;
+		try {
+			// Unbind first: if this fails, the spool is still active and still
+			// tagged, which is a state the user can retry from.
+			for (const uid of boundUids) await unbindUid(spool.id, uid);
+			inventory.patchSpool(spool.id, { extra: { ...spool.extra, card_uids: '""' } });
+			setArchived(true);
+		} catch (e) {
+			console.error('Freeing the spool tags failed', e);
+		} finally {
+			archiving = false;
+			confirmArchiveOpen = false;
+		}
+	}
+
+	function setArchived(next: boolean) {
 		inventory.patchSpool(spool.id, { archived: next });
 		spoolSource.setSpoolArchived(spool.id, next).catch((e) => {
 			inventory.patchSpool(spool.id, { archived: !next });
@@ -350,6 +384,14 @@
 				title={m['printing.qrcode.button']()}
 				><Printer size={15} /> <span class="btn-label">{m['printing.qrcode.button']()}</span></Button
 			>
+			{#if nfc.enabled}
+				<Button
+					variant="outline"
+					onclick={() => ui.openNfcWrite(Number(spool.id), filament.name)}
+					title={m['nfc.writeAction']()}
+					><Nfc size={15} /> <span class="btn-label">{m['nfc.writeAction']()}</span></Button
+				>
+			{/if}
 			<Button
 				variant="outline"
 				onclick={toggleArchived}
@@ -379,6 +421,16 @@
 		confirmLabel={deleting ? m['inspector.delete.deleting']() : m['buttons.delete']()}
 		onconfirm={remove}
 		onclose={() => (confirmOpen = false)}
+	/>
+
+	<ConfirmDialog
+		open={confirmArchiveOpen}
+		busy={archiving}
+		title={m['buttons.archive']()}
+		lines={[m['nfc.archiveFreesTag']()]}
+		confirmLabel={m['buttons.archive']()}
+		onconfirm={archiveAndFreeTags}
+		onclose={() => (confirmArchiveOpen = false)}
 	/>
 
 	<ChangeFilamentModal

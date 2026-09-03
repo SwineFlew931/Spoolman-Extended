@@ -4,9 +4,13 @@
 	import Footer from '$components/Footer.svelte';
 	import AddSpoolModal from '$components/AddSpoolModal.svelte';
 	import QrScannerModal from '$components/QrScannerModal.svelte';
+	import WedgeScanner from '$components/WedgeScanner.svelte';
+	import NfcTagFoundDialog from '$components/nfc/NfcTagFoundDialog.svelte';
+	import NfcWriteDialog from '$components/nfc/NfcWriteDialog.svelte';
 	import Toaster from '$components/Toaster.svelte';
 	import { ui } from '$lib/stores/ui.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
+	import { nfc } from '$lib/stores/nfc.svelte';
 	import { serverInfo } from '$lib/stores/serverInfo.svelte';
 	import { theme } from '$lib/stores/theme.svelte';
 	import { startLiveSync } from '$lib/api/liveSync';
@@ -39,6 +43,14 @@
 
 		return startLiveSync();
 	});
+
+	// One reader subscription for the whole app. It keeps the reader indicator
+	// honest and, more importantly, notices tags tapped when nothing was waiting
+	// for one — which is what raises the "tag detected" dialog below.
+	$effect(() => {
+		nfc.load();
+		return nfc.start();
+	});
 </script>
 
 <div class="app">
@@ -56,6 +68,24 @@
 />
 
 <QrScannerModal open={ui.scannerOpen} onclose={() => ui.closeScanner()} />
+
+<WedgeScanner />
+
+<NfcTagFoundDialog
+	tag={nfc.tag}
+	onclose={() => nfc.dismissTag()}
+	onoverwrite={(spoolId, spoolName) => {
+		nfc.dismissTag();
+		ui.openNfcWrite(spoolId, spoolName);
+	}}
+/>
+
+<NfcWriteDialog
+	open={ui.nfcWriteSpoolId !== null}
+	spoolId={ui.nfcWriteSpoolId}
+	spoolName={ui.nfcWriteSpoolName}
+	onclose={() => ui.closeNfcWrite()}
+/>
 
 <Toaster />
 

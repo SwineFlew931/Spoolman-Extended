@@ -4,6 +4,7 @@
 	import SettingRow from '$components/settings/SettingRow.svelte';
 	import ExtraFieldsManager from '$components/settings/ExtraFieldsManager.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
+	import { nfc } from '$lib/stores/nfc.svelte';
 	import { theme, type ThemePref } from '$lib/stores/theme.svelte';
 	import { locales, getLocale, setLocale, isLocale } from '$lib/paraglide/runtime.js';
 	import * as m from '$lib/paraglide/messages';
@@ -30,6 +31,19 @@
 	function saveBaseUrl(v: string) {
 		trackSave(settings.setBaseUrl(v.trim()));
 	}
+	function saveNfcFormat(v: string) {
+		trackSave(settings.setNfcDefaultFormat(v));
+	}
+
+	// Said plainly rather than hidden: someone looking for NFC settings on a
+	// server that has it switched off should find out here, not by its absence.
+	let readerState = $derived(
+		!nfc.enabled
+			? m['nfc.reader.disabled']()
+			: nfc.connected
+				? m['nfc.reader.ready']()
+				: nfc.error || m['nfc.reader.offline']()
+	);
 
 	let localeData = locales.map((code) => {
 		return {
@@ -112,6 +126,26 @@
 					placeholder="https://spoolman.example.com"
 					onchange={(e) => saveBaseUrl(e.currentTarget.value)}
 				/>
+			</SettingRow>
+		</Card>
+
+		<div class="sec-label">{m['nfc.tab']()}</div>
+		<Card divided>
+			<SettingRow title={m['nfc.reader.title']()} desc={readerState}>
+				<span class="reader" class:on={nfc.available} aria-hidden="true"></span>
+			</SettingRow>
+			<SettingRow title={m['nfc.defaultFormat.label']()} desc={m['nfc.defaultFormat.desc']()}>
+				<select
+					class="fmt"
+					aria-label={m['nfc.defaultFormat.label']()}
+					value={settings.nfcDefaultFormat}
+					disabled={!nfc.formats.length}
+					onchange={(e) => saveNfcFormat(e.currentTarget.value)}
+				>
+					{#each nfc.formats as fmt (fmt.key)}
+						<option value={fmt.key}>{fmt.label}</option>
+					{/each}
+				</select>
 			</SettingRow>
 		</Card>
 
@@ -231,5 +265,19 @@
 	.seg-btn.active {
 		background: var(--accent-fill);
 		color: #fff;
+	}
+
+	.reader {
+		width: 9px;
+		height: 9px;
+		border-radius: 50%;
+		background: var(--text-dim);
+		display: inline-block;
+	}
+	.reader.on {
+		background: var(--ok, #30a46c);
+	}
+	.fmt {
+		min-width: 180px;
 	}
 </style>

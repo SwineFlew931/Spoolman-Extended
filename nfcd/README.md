@@ -67,6 +67,11 @@ find.
 |---|---|
 | `GET /status` | Reader state: device, connected, error, transient error count, what is armed |
 | `GET /events` | SSE stream of `reader_status`, `tag`, `armed`, `write_ok`, `write_failed`, `cancelled`, `error` |
+
+There is no "tag removed" event: the reader polls and reports what it finds,
+and cannot distinguish a tag still resting on it from one presented again. A
+client that raises something on a tap therefore has to remember what it has
+already dealt with.
 | `POST /write` | Arm a write for the next tag: `{records: [{type, name, data_b64}], request_id}` |
 | `POST /erase` | Arm a blanking of the next tag: `{request_id}` |
 | `POST /cancel` | Disarm |

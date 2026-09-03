@@ -10,6 +10,8 @@ class Settings {
 	currency = $state('EUR');
 	roundPrices = $state(false);
 	baseUrl = $state('');
+	/** Which tag format the NFC write dialog pre-selects. */
+	nfcDefaultFormat = $state('opentag3d');
 	lowThreshold = $state(150);
 	loaded = $state(false);
 
@@ -23,6 +25,7 @@ class Settings {
 			this.currency = parseSetting(s.currency, 'EUR');
 			this.roundPrices = parseSetting(s.round_prices, false);
 			this.baseUrl = parseSetting(s.base_url, '');
+			this.nfcDefaultFormat = parseSetting(s.nfc_default_format, 'opentag3d');
 		} catch (e) {
 			console.error('Failed to load settings', e);
 		} finally {
@@ -41,6 +44,10 @@ class Settings {
 	async setBaseUrl(v: string) {
 		this.baseUrl = v;
 		await setSetting('base_url', v);
+	}
+	async setNfcDefaultFormat(v: string) {
+		this.nfcDefaultFormat = v;
+		await setSetting('nfc_default_format', v);
 	}
 	setLowThreshold(v: number) {
 		this.lowThreshold = v;

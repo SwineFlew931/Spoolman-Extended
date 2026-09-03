@@ -134,7 +134,10 @@
 				<button class="x" onclick={close} aria-label={m['buttons.close']()}><X size={16} /></button>
 			</div>
 
-			<p class="hint">{m['scanner.description']()}</p>
+			<p class="hint">
+				{m['scanner.description']()}
+				<span class="wedge-hint">{m['scanner.wedge.hint']()}</span>
+			</p>
 
 			<div class="stage">
 				<video bind:this={video} playsinline></video>
@@ -228,5 +231,11 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+	}
+
+	.wedge-hint {
+		display: block;
+		margin-top: 6px;
+		color: var(--text-dim);
 	}
 </style>

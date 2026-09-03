@@ -14,6 +14,10 @@ class UiState {
 	/** QR-code scanner modal (camera). */
 	scannerOpen = $state(false);
 
+	/** NFC write dialog. Set to a spool id to open it on that spool. */
+	nfcWriteSpoolId = $state<number | null>(null);
+	nfcWriteSpoolName = $state('');
+
 	/** Open the Add-spools modal, optionally pre-seeded with a filament. */
 	openAddModal(filamentId?: string) {
 		this.addModalFilamentId = filamentId ?? null;
@@ -41,6 +45,15 @@ class UiState {
 	}
 	closeScanner() {
 		this.scannerOpen = false;
+	}
+
+	openNfcWrite(spoolId: number, spoolName = '') {
+		this.nfcWriteSpoolId = spoolId;
+		this.nfcWriteSpoolName = spoolName;
+	}
+	closeNfcWrite() {
+		this.nfcWriteSpoolId = null;
+		this.nfcWriteSpoolName = '';
 	}
 }
 
