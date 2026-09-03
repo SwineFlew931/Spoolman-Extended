@@ -1,0 +1,6 @@
+# nfcd runs in its own virtualenv, separate from Spoolman's. Nothing here is a
+# Spoolman dependency: an installation without a reader never installs any of it.
+nfcpy>=1.0.4,<2
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+pydantic>=2.10,<3

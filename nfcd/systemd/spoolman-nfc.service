@@ -1,0 +1,37 @@
+# NFC reader daemon for Spoolman Extended.
+#
+# Copy to /etc/systemd/system/spoolman-nfc.service, replace the three CHANGEME
+# values, then:
+#
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now spoolman-nfc
+#
+[Unit]
+Description=NFC reader daemon for Spoolman Extended
+Documentation=https://github.com/SwineFlew931/Spoolman-Extended
+After=network.target
+
+[Service]
+Type=simple
+# Must be a member of the dialout group, or the reader's serial port cannot be
+# opened. This does not need to be the same user Spoolman runs as, but it
+# usually is.
+User=CHANGEME_USER
+WorkingDirectory=CHANGEME_SPOOLMAN_DIR
+ExecStart=CHANGEME_SPOOLMAN_DIR/nfcd/.venv/bin/uvicorn nfcd.server:app --host 127.0.0.1 --port 7913
+
+# The reader can wedge in a way only a restart clears; that is the whole reason
+# this is a separate process.
+Restart=always
+RestartSec=5
+
+# Deliberately absent: RestrictSUIDSGID and ProtectKernelTunables. Each one
+# implies NoNewPrivileges=yes, and an explicit NoNewPrivileges=no does not
+# override the implication. Also absent: ProtectHome, which would hide the
+# virtualenv on the common /home/<user>/Spoolman layout.
+PrivateTmp=yes
+ProtectSystem=full
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target
