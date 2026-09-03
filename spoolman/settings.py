@@ -71,6 +71,10 @@ register_setting("extra_fields_filament", SettingType.ARRAY, json.dumps([]))
 register_setting("extra_fields_spool", SettingType.ARRAY, json.dumps([]))
 register_setting("base_url", SettingType.STRING, json.dumps(""))
 
+# Which tag format the NFC write dialog offers first. Only a preselection: the
+# dialog always lets you pick something else for the tag in your hand.
+register_setting("nfc_default_format", SettingType.STRING, json.dumps("opentag3d"))
+
 register_setting("locations", SettingType.ARRAY, json.dumps([]))
 register_setting("locations_spoolorders", SettingType.OBJECT, json.dumps({}))
 

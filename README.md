@@ -1,3 +1,41 @@
+# Spoolman Extended
+
+**An unofficial fork of [Spoolman](https://github.com/Donkie/Spoolman) by Donkie.**
+Not affiliated with or endorsed by the Spoolman project.
+
+Spoolman Extended adds NFC tag reading and writing to Spoolman. Nothing else is
+changed: the inventory, the API, the label designer and the web client all work
+exactly as they do upstream, and everything below this notice is Spoolman's own
+documentation, unedited.
+
+| | |
+|---|---|
+| **Upstream** | https://github.com/Donkie/Spoolman — report Spoolman bugs there, not here |
+| **Base version** | v0.26.1 (`f387203`). Fork versions mirror it as `0.26.1+ext.N`, so the base is always visible |
+| **Status** | In development |
+
+### What this fork adds
+
+- Read and write NFC tags from within Spoolman, using a PN532 reader.
+- A choice of tag formats on write — OpenTag3D, OpenSpool, nfc2klipper and
+  UID-only bindings, with the compatible NTAG chips computed from the actual
+  payload rather than guessed.
+- Tag writing folded into the existing "add spool" flow, so a new spool can be
+  created and tagged in one pass.
+- Tapping a tag that Spoolman already knows about takes you to its spool.
+
+The reader is driven by a small separate daemon (`nfcd/`), so an installation
+without NFC hardware runs exactly like upstream Spoolman and needs none of its
+dependencies.
+
+### License and credit
+
+Spoolman is MIT licensed, © 2023 Daniel Hultgren. `LICENSE` is unchanged and
+applies to all of it. Additions made in this fork are © 2026 SwineFlew931 and
+released under the same MIT license.
+
+---
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Donkie/Spoolman/assets/2332094/4e6e80ac-c7be-4ad2-9a33-dedc1b5ba30e">
   <source media="(prefers-color-scheme: light)" srcset="https://github.com/Donkie/Spoolman/assets/2332094/3c120b3a-1422-42f6-a16b-8d5a07c33000">
