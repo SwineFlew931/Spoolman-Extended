@@ -28,6 +28,13 @@ The reader is driven by a small separate daemon (`nfcd/`), so an installation
 without NFC hardware runs exactly like upstream Spoolman and needs none of its
 dependencies.
 
+### Optional extras
+
+- [`integrations/snapmaker-u1/`](integrations/snapmaker-u1/) — keeps a Snapmaker
+  U1's per-channel spool state mirrored into Spoolman's `Location` field, and
+  works around a stall in SpoolLink's own tag resolution. A separate service
+  that nothing else depends on; skip it if you have no U1.
+
 ### License and credit
 
 Spoolman is MIT licensed, © 2023 Daniel Hultgren. `LICENSE` is unchanged and

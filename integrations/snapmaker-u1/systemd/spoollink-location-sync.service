@@ -1,0 +1,33 @@
+# Snapmaker U1 -> Spoolman location sync.
+#
+# Copy to /etc/systemd/system/spoollink-location-sync.service, replace the
+# CHANGEME values, then:
+#
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now spoollink-location-sync
+#
+[Unit]
+Description=SpoolLink -> Spoolman Location sync for Snapmaker U1
+Documentation=https://github.com/SwineFlew931/Spoolman-Extended
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=CHANGEME_USER
+WorkingDirectory=CHANGEME_SPOOLMAN_DIR/integrations/snapmaker-u1
+ExecStart=CHANGEME_SPOOLMAN_DIR/integrations/snapmaker-u1/.venv/bin/python3 CHANGEME_SPOOLMAN_DIR/integrations/snapmaker-u1/spoollink_location_sync.py
+
+# Required. The printer's Moonraker; the service refuses to start without it
+# rather than polling an address that might quietly be the wrong one.
+Environment=MOONRAKER_URL=http://CHANGEME_PRINTER:7125
+# Optional. Defaults to the local Spoolman, which is where this normally runs.
+#Environment=SPOOLMAN_URL=http://127.0.0.1:7912
+#Environment=PRINTER_LABEL=Snapmaker U1
+#Environment=POLL_INTERVAL_SECONDS=5
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -126,4 +126,10 @@ ignore = [
 # diameters and counts (PLR2004), and the data generators are long by nature
 # (C901/PLR0912/PLR0915). Everything else — including type annotations — is still
 # enforced.
+# Optional standalone integrations. Each is its own deployable with its own
+# virtualenv, vendored rather than written to Spoolman's house style, and kept
+# deliberately close to the upstream project it came from so changes there stay
+# easy to follow. os.path over pathlib (PTH), a module-level lookup cache
+# (PLW0603) and a long poll loop (C901) are all fine in that context.
+"integrations/*" = ["C901", "PLW0603", "PTH100", "PTH118", "PTH120", "PTH123"]
 "scripts/*" = ["ANN401", "C901", "D102", "D103", "D107", "FBT003", "PLR0912", "PLR0915", "PLR2004", "S311", "T201"]
