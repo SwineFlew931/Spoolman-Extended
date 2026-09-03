@@ -16,6 +16,9 @@ documentation, unedited.
 
 ### What this fork adds
 
+[**What Spoolman Extended adds**](WHAT-THIS-ADDS.md) explains it in plain terms,
+without assuming you know what NDEF is. The short version:
+
 - Read and write NFC tags from within Spoolman, using a PN532 reader.
 - A choice of tag formats on write — OpenTag3D, OpenSpool, nfc2klipper and
   UID-only bindings, with the compatible NTAG chips computed from the actual
