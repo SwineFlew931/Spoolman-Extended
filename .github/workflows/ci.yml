@@ -159,6 +159,9 @@ jobs:
   # Build native image for integration tests
   #
   build-amd64:
+    # Image publishing is upstream's; this fork ships a zip instead. Gated on the
+    # repository so the job stays intact for merges from upstream.
+    if: github.repository == 'Donkie/Spoolman'
     needs: [build-client]
     runs-on: ubuntu-latest
     permissions:
@@ -218,6 +221,9 @@ jobs:
   # Build tester image for integration tests
   #
   build-tester:
+    # Image publishing is upstream's; this fork ships a zip instead. Gated on the
+    # repository so the job stays intact for merges from upstream.
+    if: github.repository == 'Donkie/Spoolman'
     runs-on: ubuntu-latest
     permissions:
       packages: write
@@ -264,6 +270,9 @@ jobs:
   # Perform integration tests
   #
   test:
+    # Image publishing is upstream's; this fork ships a zip instead. Gated on the
+    # repository so the job stays intact for merges from upstream.
+    if: github.repository == 'Donkie/Spoolman'
     needs: [build-amd64, build-tester]
     strategy:
       matrix:
@@ -294,6 +303,9 @@ jobs:
   # Perform frontend (browser) integration tests against the real image
   #
   test-frontend:
+    # Image publishing is upstream's; this fork ships a zip instead. Gated on the
+    # repository so the job stays intact for merges from upstream.
+    if: github.repository == 'Donkie/Spoolman'
     needs: [build-amd64]
     runs-on: ubuntu-latest
     steps:
@@ -347,6 +359,9 @@ jobs:
   # Perform frontend (browser) integration tests for client_v2 against the real image
   #
   test-frontend-v2:
+    # Image publishing is upstream's; this fork ships a zip instead. Gated on the
+    # repository so the job stays intact for merges from upstream.
+    if: github.repository == 'Donkie/Spoolman'
     needs: [build-amd64]
     runs-on: ubuntu-latest
     steps:
@@ -403,6 +418,9 @@ jobs:
   # write access), so cache-to is skipped and we only read from it.
   #
   build-arm64:
+    # Image publishing is upstream's; this fork ships a zip instead. Gated on the
+    # repository so the job stays intact for merges from upstream.
+    if: github.repository == 'Donkie/Spoolman'
     needs: [build-client]
     runs-on: ubuntu-latest
     permissions:
@@ -470,6 +488,9 @@ jobs:
   # write access), so cache-to is skipped and we only read from it.
   #
   build-armv7:
+    # Image publishing is upstream's; this fork ships a zip instead. Gated on the
+    # repository so the job stays intact for merges from upstream.
+    if: github.repository == 'Donkie/Spoolman'
     needs: [build-client]
     runs-on: ubuntu-latest
     permissions:
@@ -537,6 +558,9 @@ jobs:
   # alembic migrations) is slow, hence the generous retry budget.
   #
   test-multiarch-smoke:
+    # Image publishing is upstream's; this fork ships a zip instead. Gated on the
+    # repository so the job stays intact for merges from upstream.
+    if: github.repository == 'Donkie/Spoolman'
     needs: [build-arm64, build-armv7]
     strategy:
       fail-fast: false
@@ -597,7 +621,8 @@ jobs:
   # Don't run this for pull requests
   #
   publish-images:
-    if: ${{ github.event_name != 'pull_request' }}
+    # See the note on build-amd64: this fork does not publish images.
+    if: ${{ (github.event_name != 'pull_request') && github.repository == 'Donkie/Spoolman' }}
     needs:
       [
         test,
@@ -728,7 +753,10 @@ jobs:
   #
   publish-release:
     if: ${{ (github.event_name != 'pull_request') && startsWith(github.event.ref, 'refs/tags/v') }}
-    needs: [publish-images]
+    # Upstream gates this on the images being published. This fork publishes no
+    # images, so it gates on the same things a user actually receives: the
+    # quality checks, and the build that goes into the zip.
+    needs: [style, build-client]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -743,8 +771,8 @@ jobs:
         run: |
           cd /tmp/spoolman
           echo '{
-            "project_name": "Spoolman",
-            "project_owner": "Donkie",
+            "project_name": "Spoolman Extended",
+            "project_owner": "SwineFlew931",
             "version": "${{ github.ref_name }}"
           }' > release_info.json
 
@@ -762,4 +790,9 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: /tmp/spoolman/spoolman.zip
           token: ${{ secrets.GITHUB_TOKEN }}
-          body: "⚠️ TODO ⚠️"
+          body: |
+            Unofficial fork of [Spoolman](https://github.com/Donkie/Spoolman) with NFC tag
+            reading and writing. See [what it adds](https://github.com/SwineFlew931/Spoolman-Extended/blob/nfc-integration/WHAT-THIS-ADDS.md)
+            and [INSTALL.md](https://github.com/SwineFlew931/Spoolman-Extended/blob/nfc-integration/INSTALL.md).
+
+            This zip contains the web client already built, so installing needs no Node.

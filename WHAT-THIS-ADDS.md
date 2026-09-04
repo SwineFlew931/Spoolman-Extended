@@ -2,7 +2,7 @@
 
 Spoolman keeps a list of your filament — what you own, what colour it is, how
 much is left. Spoolman Extended is the same program with one thing added: it
-can read and write the little NFC stickers you put on your spools.
+can read and write the NFC stickers you put on your spools.
 
 That's the whole difference. Everything else works exactly as it did.
 

@@ -13,11 +13,13 @@ documentation, unedited.
 | **Upstream** | https://github.com/Donkie/Spoolman — report Spoolman bugs there, not here |
 | **Base version** | v0.26.1 (`f387203`). Fork versions mirror it as `0.26.1+ext.N`, so the base is always visible |
 | **Status** | In development |
+| **Install** | [INSTALL.md](INSTALL.md) — copy-paste, from a release zip |
 
 ### What this fork adds
 
 [**What Spoolman Extended adds**](WHAT-THIS-ADDS.md) explains it in plain terms,
-without assuming you know what NDEF is. The short version:
+without assuming you know what NDEF is, and [**INSTALL.md**](INSTALL.md) has the
+commands. The short version:
 
 - Read and write NFC tags from within Spoolman, using a PN532 reader.
 - A choice of tag formats on write — OpenTag3D, OpenSpool, nfc2klipper and
