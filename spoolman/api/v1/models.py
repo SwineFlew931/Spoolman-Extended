@@ -564,7 +564,21 @@ class SearchResults(BaseModel):
 
 
 class Info(BaseModel):
-    version: str = Field(examples=["0.7.0"])
+    version: str = Field(
+        description=(
+            "The upstream Spoolman version. Integrations compare against this, so it never carries a "
+            "fork's local version segment; see fork_version."
+        ),
+        examples=["0.7.0"],
+    )
+    fork_version: str | None = Field(
+        None,
+        description=(
+            "Set only when this build declares a PEP 440 local version, as an unofficial fork does. "
+            "Null on a plain upstream build."
+        ),
+        examples=["0.26.1+ext.1"],
+    )
     debug_mode: bool = Field(examples=[False])
     automatic_backups: bool = Field(examples=[True])
     data_dir: str = Field(examples=["/home/app/.local/share/spoolman"])

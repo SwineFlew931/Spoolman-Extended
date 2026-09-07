@@ -46,3 +46,34 @@ def test_get_cors_origin_drops_empty_and_duplicate_entries(monkeypatch: pytest.M
 def test_get_cors_origin_raw_is_unparsed(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("SPOOLMAN_CORS_ORIGIN", " https://a.local, https://b.local ")
     assert env.get_cors_origin_raw() == " https://a.local, https://b.local "
+
+
+@pytest.mark.parametrize(
+    ("declared", "reported", "fork"),
+    [
+        # This fork. Moonraker, Happy Hare and SpoolLink compare the reported
+        # version against Spoolman releases they know about, so it has to be one.
+        ("0.26.1+ext.1", "0.26.1", "0.26.1+ext.1"),
+        ("0.26.1+ext.12", "0.26.1", "0.26.1+ext.12"),
+        ("0.27.0+ext.1", "0.27.0", "0.27.0+ext.1"),
+        # A plain upstream build reports itself unchanged and claims no fork.
+        ("0.26.1", "0.26.1", None),
+        ("unknown", "unknown", None),
+    ],
+)
+def test_version_splits_off_the_local_segment(
+    monkeypatch: pytest.MonkeyPatch,
+    declared: str,
+    reported: str,
+    fork: str | None,
+):
+    monkeypatch.setattr(env, "_read_declared_version", lambda: declared)
+    assert env.get_version() == reported
+    assert env.get_fork_version() == fork
+
+
+def test_reported_version_never_carries_a_local_segment(monkeypatch: pytest.MonkeyPatch):
+    # The whole point: whatever is declared, what integrations read is a version
+    # upstream has actually released.
+    monkeypatch.setattr(env, "_read_declared_version", lambda: "0.26.1+ext.99")
+    assert "+" not in env.get_version()

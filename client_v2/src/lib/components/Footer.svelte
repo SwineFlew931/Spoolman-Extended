@@ -16,7 +16,12 @@
 	<div class="version" title={info?.build_date ?? ''}>
 		Spoolman
 		{#if info}
-			v{info.version}{#if info.git_commit}<span class="commit"> ({info.git_commit})</span>{/if}
+			<!-- The full fork version belongs here, where a person reads it. The API
+			     reports the upstream version instead, because integrations compare
+			     against that; see spoolman.env.get_version. -->
+			v{info.fork_version ?? info.version}{#if info.git_commit}<span class="commit">
+					({info.git_commit})</span
+				>{/if}
 		{/if}
 		·
 		<a href="https://github.com/Donkie/Spoolman">{m['footer.documentation']()}</a>

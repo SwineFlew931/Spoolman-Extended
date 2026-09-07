@@ -385,11 +385,11 @@ def get_cache_dir() -> Path:
     return get_data_dir() / "cache"
 
 
-def get_version() -> str:
-    """Get the version of the package.
+def _read_declared_version() -> str:
+    """Read the version as declared in pyproject.toml.
 
     Returns:
-        str: The version.
+        str: The declared version, including any local segment.
 
     """
     # Read version from pyproject.toml, don't use pkg_resources because it requires the package to be installed
@@ -398,6 +398,38 @@ def get_version() -> str:
             if line.startswith("version ="):
                 return line.split('"')[1]
     return "unknown"
+
+
+def get_version() -> str:
+    """Get the version reported to API clients.
+
+    This fork declares itself as `<upstream version>+ext.N`. The part after the
+    `+` is a PEP 440 *local version identifier*, which means this is upstream
+    version 0.26.1 with local metadata attached -- not a different version. So
+    reporting the part before it is the accurate answer, not a disguise.
+
+    It is also the compatible one. Moonraker, Happy Hare and SpoolLink read this
+    field and compare it against the Spoolman versions they know about; a local
+    segment they have never seen makes those comparisons fail, and the
+    integrations break with nothing obviously wrong. The full string is still
+    available, as `fork_version` on /api/v1/info and in the web client's footer.
+
+    Returns:
+        str: The upstream version this is built on.
+
+    """
+    return _read_declared_version().split("+", 1)[0]
+
+
+def get_fork_version() -> str | None:
+    """Get the full declared version, when it carries a local segment.
+
+    Returns:
+        str | None: The full version, or None when this is a plain upstream build.
+
+    """
+    declared = _read_declared_version()
+    return declared if "+" in declared else None
 
 
 def get_commit_hash() -> str | None:

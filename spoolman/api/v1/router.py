@@ -50,6 +50,7 @@ async def info() -> models.Info:
     """Return general info about the API."""
     return models.Info(
         version=env.get_version(),
+        fork_version=env.get_fork_version(),
         debug_mode=env.is_debug_mode(),
         automatic_backups=env.is_automatic_backup_enabled(),
         data_dir=str(env.get_data_dir().resolve()),
