@@ -1,0 +1,34 @@
+# Stable names for PN532 NFC readers behind CH340 USB-serial bridges.
+#
+# Install:
+#   sudo cp 99-spoolman-nfc.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#
+# This file is optional. nfcd finds a single reader by USB ID on its own
+# (NFCD_USB_IDS, default 1a86:7523) and needs no rule at all. The rules matter
+# when there is more than one reader on the bus, because a CH340 carries no USB
+# serial number -- so the only thing that tells two of them apart is which
+# physical port each is in.
+#
+# ---------------------------------------------------------------------------
+# One reader: a name that follows the hardware to any port.
+# Point nfcd at it with NFCD_DEVICE_PATH=/dev/nfc-reader
+# ---------------------------------------------------------------------------
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", SYMLINK+="nfc-reader", GROUP="dialout", MODE="0660"
+
+# ---------------------------------------------------------------------------
+# Several readers: a name per physical port, so each spool holder keeps its
+# own identity across reboots and across the kernel renumbering ttyUSB*.
+#
+# Find the port for a reader you have already plugged in:
+#   udevadm info -q property -n /dev/ttyUSB0 | grep ID_PATH=
+#
+# Then uncomment a line per reader and set KERNELS to the USB path from
+# ID_PATH's "usb-0:" suffix -- e.g. ID_PATH=...-usb-0:1.1:1.0 is "1-1.1:1.0"
+# on a Pi 4B, whose external ports hang off hub 1-1. Verify yours; the numbers
+# differ by board and by whether an external hub is in the chain.
+#
+#SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", KERNELS=="1-1.1:1.0", SYMLINK+="nfc-ch0", GROUP="dialout", MODE="0660"
+#SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", KERNELS=="1-1.2:1.0", SYMLINK+="nfc-ch1", GROUP="dialout", MODE="0660"
+#SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", KERNELS=="1-1.3:1.0", SYMLINK+="nfc-ch2", GROUP="dialout", MODE="0660"
+#SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="7523", KERNELS=="1-1.4:1.0", SYMLINK+="nfc-ch3", GROUP="dialout", MODE="0660"

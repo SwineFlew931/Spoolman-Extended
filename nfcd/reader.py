@@ -12,7 +12,7 @@ import threading
 import time
 from typing import Any
 
-from nfcd import config
+from nfcd import config, device
 from nfcd.events import bus
 
 log = logging.getLogger("nfcd.reader")
@@ -42,7 +42,9 @@ class ReaderService:
         self._last_seen: float = 0.0
         self._transient = 0
         self.status: dict[str, Any] = {
-            "device": config.DEVICE,
+            # Filled in by the reader thread once it resolves the hardware; the
+            # configured value is a hint, not necessarily where it ends up.
+            "device": config.DEVICE or "(resolving)",
             "connected": False,
             "error": "",
             "last_tag": None,
@@ -117,25 +119,42 @@ class ReaderService:
 
         while not self._stop.is_set():
             clf = None
+            path = ""
             try:
                 import nfc  # noqa: PLC0415
 
-                clf = nfc.ContactlessFrontend(config.DEVICE)
+                # Resolved per attempt, not once at startup. The whole point is
+                # that the kernel index is not stable across a replug, so a
+                # value cached from the last successful open is worthless.
+                path = device.resolve()
+                if path != self.status["device"]:
+                    log.info("Reader resolved to %s", path)
+                self.status["device"] = path
+
+                clf = nfc.ContactlessFrontend(path)
                 _suppress_power_down(clf)
                 _shorten_activation_retries(clf)
+                self._transient = 0
+                self.status["transient_errors"] = 0
                 self._set_status(connected=True, error="")
-                log.info("PN532 open on %s", config.DEVICE)
+                log.info("PN532 open on %s", path)
                 self._poll_loop(clf)
+            except (device.ReaderNotFoundError, device.ReaderGoneError) as exc:
+                # Expected while the reader is unplugged. Distinguished from a
+                # reader that is present but misbehaving, which is a real fault.
+                self._set_status(connected=False, error=str(exc))
+                log.info("Reader not present (%s); rechecking in %.0fs", exc, config.RECONNECT_WAIT)
+                self._stop.wait(config.RECONNECT_WAIT)
             except Exception as exc:  # noqa: BLE001 - any failure here means "no reader", and we retry
                 self._set_status(connected=False, error=str(exc))
                 log.warning("Reader unavailable (%s); retrying in %.0fs", exc, config.RECONNECT_WAIT)
                 self._stop.wait(config.RECONNECT_WAIT)
             finally:
                 if clf is not None:
-                    try:
-                        clf.close()
-                    except Exception:  # noqa: BLE001 - closing a broken reader is best-effort
-                        log.debug("Ignoring error while closing the reader")
+                    # Must actually free the descriptor, not merely try. A leaked
+                    # handle pins the kernel minor, which makes the device
+                    # reappear under a new index -- see nfcd/device.py.
+                    device.release(clf)
         self._set_status(connected=False, error="Reader stopped.")
 
     def _poll_loop(self, clf: Any) -> None:  # noqa: ANN401 - nfcpy is an optional import
@@ -154,6 +173,7 @@ class ReaderService:
             clf: An open nfcpy ContactlessFrontend.
 
         Raises:
+            device.ReaderGoneError: The device node vanished; reconnect immediately.
             RuntimeError: The reader produced too many consecutive errors.
 
         """
@@ -166,6 +186,14 @@ class ReaderService:
                 target = clf.sense(RemoteTarget("106A"), iterations=1, interval=0.2)
                 consecutive = 0
             except Exception as exc:  # see docstring: these are serial desync, not a dead reader
+                # ...unless the device is simply gone, which is not a glitch to
+                # ride out. Spending MAX_CONSECUTIVE_ERRORS polls on a node that
+                # no longer exists keeps its descriptor open, and an open
+                # descriptor holds the kernel minor, so the reader is forced to
+                # reappear under a different index. Bail out at once instead.
+                if device.is_gone(exc, clf):
+                    msg = f"reader disconnected: {exc}"
+                    raise device.ReaderGoneError(msg) from exc
                 consecutive += 1
                 self._transient += 1
                 self.status["transient_errors"] = self._transient
