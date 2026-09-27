@@ -1,0 +1,97 @@
+# Checks for the companion, separate from upstream's CI.
+#
+# Upstream's ci.yml is disabled in this fork and cannot work here: it writes
+# build cache into ghcr.io/donkie/spoolman, publishes to a Docker Hub account
+# this repository has no secrets for, and drafts a release for every tag. Its
+# style job was worth keeping, so the useful half lives here instead — in a new
+# file, so upstream's is left untouched and never conflicts on a merge.
+name: Companion CI
+
+on:
+  push:
+    branches:
+      - nfc-client-only
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - nfc-client-only
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend:
+    name: Python — lint, format, tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.26"
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Backend tests
+        run: uv run pytest tests/ -q
+
+      # The U1 integration ships as a standalone directory with its own venv on
+      # the target machine, so its tests are run from there with only requests
+      # installed — the same way they run in production.
+      - name: U1 integration tests
+        run: |
+          cd integrations/snapmaker-u1
+          uv venv .venv
+          uv pip install --python .venv -r requirements.txt pytest
+          .venv/bin/python -m pytest -q
+
+  client:
+    name: Client — format, typecheck, tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Node 20 or newer: the build tooling imports styleText from node:util,
+      # which Node 18 does not have.
+      - name: Install node
+        uses: actions/setup-node@v4.0.3
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: |
+          cd client_v2
+          npm ci
+
+      - name: Format check
+        run: |
+          cd client_v2
+          ./node_modules/.bin/prettier --check .
+
+      - name: Typecheck
+        run: |
+          cd client_v2
+          npm run check
+
+      - name: Unit tests
+        run: |
+          cd client_v2
+          npx vitest run
