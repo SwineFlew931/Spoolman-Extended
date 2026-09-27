@@ -37,6 +37,18 @@ Four tag formats are supported: **OpenTag3D** (the default), **OpenSpool**,
 **nfc2klipper**, and **UID-only** (which writes nothing to the tag and just
 records its serial number).
 
+### Tapping a tag
+
+Rest a tagged spool on the reader and a dialog says what it is, wherever you are
+in the app. From there you can jump to that spool, rewrite the tag, or erase it.
+
+![A dialog headed Tag detected, showing UID 04CF1457D32A81 and the line: This tag identifies Sunlu / PLA / Basic / Black (#77), with buttons Erase tag, Write it again, and Go to it](.github/images/tag-found.png)
+
+It reads out brand, material, subtype and colour rather than just a number,
+because the question being asked while holding a spool is "what *is* this?" —
+and `#77` answers a different question. Tags on filaments are recognised too,
+not only tags on spools.
+
 ### Writing a tag
 
 A **Write tag** button joins the spool's own action row, beside Print Labels —
