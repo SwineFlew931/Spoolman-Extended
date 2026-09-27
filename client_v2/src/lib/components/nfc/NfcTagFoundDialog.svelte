@@ -19,7 +19,7 @@
 	import { findTagHolder, unlinkTag, holderTarget, type TagHolder } from '$lib/api/tags';
 	import { nfcWriter } from '$lib/stores/nfcWriter.svelte';
 	import { inventory } from '$lib/stores/inventory.svelte';
-	import { filamentLabel } from '$lib/utils/library';
+	import { describeFilament } from './describeFilament';
 	import { toasts } from '$lib/stores/toasts.svelte';
 
 	interface Props {
@@ -39,18 +39,28 @@
 
 	const open = $derived(!!tag?.uid);
 
-	// The name to call whatever holds this tag, spelled the way the rest of the
-	// library spells it: a spool is named by its filament, not by its id. "#59" is
-	// correct and useless -- the point of tapping a tag is usually to find out
-	// *what* it is. findTagHolder seeds the cache, so the filament is already here.
+	// The name to call whatever holds this tag. A spool is named by its filament,
+	// not by its id: "#59" is correct and useless, because the point of tapping a
+	// tag is usually to find out *what* it is. Spelled out in full here -- brand,
+	// material, variant, colour -- since this dialog is read by someone holding
+	// the roll and asking exactly that. findTagHolder seeds the cache, so the
+	// filament is already here.
+	//
+	// The id still comes along, in brackets so it reads as a footnote rather than
+	// as another slash-separated part of the description.
 	const holderName = $derived.by(() => {
 		if (!holder) return '';
-		if (holder.kind === 'filament') return holder.filament.name || `#${holder.filament.id}`;
+		if (holder.kind === 'filament') {
+			const owner = holder.filament.vendorId
+				? inventory.vendorById(holder.filament.vendorId)
+				: undefined;
+			return describeFilament(holder.filament, owner);
+		}
 		const spool = holder.spool;
 		const filament = inventory.filamentById(spool.filamentId);
 		if (!filament) return `#${spool.id}`;
 		const vendor = filament.vendorId ? inventory.vendorById(filament.vendorId) : undefined;
-		return `${filamentLabel(filament, vendor)} #${spool.id}`;
+		return `${describeFilament(filament, vendor)} (#${spool.id})`;
 	});
 
 	$effect(() => {
