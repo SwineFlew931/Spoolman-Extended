@@ -154,6 +154,33 @@ app.add_middleware(
 )
 
 
+def _should_forward(uid: str, last: tuple[str, float] | None, now: float) -> bool:
+    """Decide whether a tap is news, or the same tag still sitting there.
+
+    The reader cannot tell a tag left resting on it from one presented again --
+    it polls, and reports whatever it finds. Left alone that means a spool parked
+    on the reader is announced every RETAP_GRACE seconds forever, and since
+    Spoolman navigates a paired browser to whatever was scanned, the page is
+    dragged back to that spool every few seconds no matter where the user went.
+
+    So the same UID is only forwarded again after a gap long enough to mean the
+    tag was deliberately presented rather than never lifted. A different UID is
+    always news and resets this immediately.
+
+    Args:
+        uid: The UID just read.
+        last: The previously forwarded (uid, monotonic time), if any.
+        now: The current monotonic time.
+
+    Returns:
+        True when the tap should be passed to Spoolman.
+
+    """
+    if last is None or last[0] != uid:
+        return True
+    return now - last[1] >= config.RESCAN_INTERVAL
+
+
 async def _forward_ambient_scans() -> None:
     """Pass tags tapped outside a write on to Spoolman.
 
@@ -162,11 +189,18 @@ async def _forward_ambient_scans() -> None:
     announced as a scan -- which is the reason this belongs in the service rather
     than being approximated by a flag in the browser.
     """
+    last: tuple[str, float] | None = None
     async with bus.listen() as queue:
         while True:
             event = await queue.get()
-            if event.get("type") == "tag" and event.get("uid"):
-                await spoolman.forward_scan(str(event["uid"]))
+            if event.get("type") != "tag" or not event.get("uid"):
+                continue
+            uid = str(event["uid"])
+            now = asyncio.get_running_loop().time()
+            if not _should_forward(uid, last, now):
+                continue
+            last = (uid, now)
+            await spoolman.forward_scan(uid)
 
 
 class Status(BaseModel):

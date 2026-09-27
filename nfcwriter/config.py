@@ -45,6 +45,12 @@ FORWARD_SCANS = os.getenv("NFCW_FORWARD_SCANS", "true").lower() not in ("0", "fa
 # scanner settings can tell several readers apart.
 READER_ID = os.getenv("NFCW_READER_ID", "nfcwriter")
 
+# How long before the same tag counts as a new tap rather than one that was
+# never lifted off the reader. The reader cannot tell the two apart, and a
+# spool parked on it would otherwise drag a paired browser back to that spool
+# every few seconds. A different tag is always news and ignores this.
+RESCAN_INTERVAL = float(os.getenv("NFCW_RESCAN_INTERVAL", "30"))
+
 # --- polling behaviour -----------------------------------------------------
 # Unchanged from the integrated daemon; each value is explained where it is used.
 RETAP_GRACE = 3.0

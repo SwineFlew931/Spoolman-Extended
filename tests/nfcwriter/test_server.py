@@ -136,3 +136,22 @@ def test_failed_write_is_not_ok() -> None:
     )
     assert result.ok is False
     assert result.message == "tag went away"
+
+
+def test_a_tag_left_on_the_reader_is_forwarded_once() -> None:
+    """A parked spool must not drag a paired browser back to it every 3 seconds."""
+    first = server._should_forward("AABB", None, 0.0)  # noqa: SLF001
+    assert first is True
+    # The reader re-reports the same tag every RETAP_GRACE (3s) while it rests.
+    for t in (3.0, 6.0, 9.0, 29.9):
+        assert server._should_forward("AABB", ("AABB", 0.0), t) is False, t  # noqa: SLF001
+
+
+def test_the_same_tag_is_news_again_after_the_interval() -> None:
+    """Lifting a tag and presenting it again must still register."""
+    assert server._should_forward("AABB", ("AABB", 0.0), 30.0) is True  # noqa: SLF001
+
+
+def test_a_different_tag_is_always_news() -> None:
+    """Swapping spools must register at once, not after a cooldown."""
+    assert server._should_forward("CCDD", ("AABB", 0.0), 0.1) is True  # noqa: SLF001
