@@ -516,7 +516,7 @@
 
 			<ExtraFieldsSection entity="spool" extra={spool.extra} onchange={extraSaver.change} manage />
 
-			<TagsSection kind="spool" id={spool.id} tags={spool.tags} />
+			<TagsSection kind="spool" id={spool.id} tags={spool.tags} {spool} />
 		</div>
 
 		<div class="col">

@@ -8,6 +8,7 @@
 	import { ui } from '$lib/stores/ui.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { serverInfo } from '$lib/stores/serverInfo.svelte';
+	import { nfcWriter } from '$lib/stores/nfcWriter.svelte';
 	import { theme } from '$lib/stores/theme.svelte';
 	import { startLiveSync } from '$lib/api/liveSync';
 	import { scanRelay } from '$lib/api/scanRelay';
@@ -46,6 +47,20 @@
 		serverInfo.load();
 
 		return startLiveSync();
+	});
+
+	// Probe for a tag writer, and keep its reader status live.
+	//
+	// Optional by design: this is a separate service on another origin, and a plain
+	// Spoolman install has none. Its absence is the normal case and is not
+	// reported -- the write affordances simply do not render.
+	$effect(() => {
+		nfcWriter.restoreFormat();
+		let stop: (() => void) | undefined;
+		nfcWriter.load().then(() => {
+			stop = nfcWriter.start();
+		});
+		return () => stop?.();
 	});
 
 	// The one place a scanned tag is allowed to move this browser.

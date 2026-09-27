@@ -1,0 +1,40 @@
+# Tag writer for Spoolman.
+#
+# Install:
+#   sudo cp nfcwriter.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now nfcwriter
+#
+# Replace User, WorkingDirectory and ExecStart to match where it is installed.
+[Unit]
+Description=NFC tag writer for Spoolman
+Documentation=https://github.com/SwineFlew931/Spoolman-Extended
+After=network.target
+
+[Service]
+Type=simple
+# Must be in the dialout group or the reader's serial port cannot be opened.
+# Does not need to be the user Spoolman runs as -- this service only reads
+# Spoolman's REST API -- though it usually is.
+User=joshe
+WorkingDirectory=/home/joshe/nfcwriter
+Environment=NFCW_SPOOLMAN_URL=http://127.0.0.1:7912
+# The browser calls this service directly, so Spoolman's origin has to be
+# allowed. Narrow this to the real origin on an untrusted network.
+Environment=NFCW_ALLOWED_ORIGINS=*
+ExecStart=/home/joshe/nfcwriter/.venv/bin/uvicorn nfcwriter.server:app --host 0.0.0.0 --port 7914
+
+# The reader can wedge in a way only a restart clears; that is the whole reason
+# this is a separate process from Spoolman.
+Restart=always
+RestartSec=5
+
+# Deliberately absent: RestrictSUIDSGID and ProtectKernelTunables. Each implies
+# NoNewPrivileges=yes, and an explicit NoNewPrivileges=no does not override the
+# implication. Also absent: ProtectHome, which would hide the virtualenv on the
+# common /home/<user>/ layout.
+PrivateTmp=yes
+ProtectSystem=full
+ProtectControlGroups=yes
+
+[Install]
+WantedBy=multi-user.target
