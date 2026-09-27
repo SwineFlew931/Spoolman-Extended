@@ -9,6 +9,8 @@
 	import { settings } from '$lib/stores/settings.svelte';
 	import { serverInfo } from '$lib/stores/serverInfo.svelte';
 	import { nfcWriter } from '$lib/stores/nfcWriter.svelte';
+	import NfcWriteDialog from '$lib/components/nfc/NfcWriteDialog.svelte';
+	import NfcTagFoundDialog from '$lib/components/nfc/NfcTagFoundDialog.svelte';
 	import { theme } from '$lib/stores/theme.svelte';
 	import { startLiveSync } from '$lib/api/liveSync';
 	import { scanRelay } from '$lib/api/scanRelay';
@@ -135,6 +137,20 @@
 />
 
 <QrScannerModal open={ui.scannerOpen} onclose={() => ui.closeScanner()} />
+
+<!-- Both NFC dialogs live here rather than in the inspector, because a tag can be
+     tapped on any screen and the tag-found dialog hands straight over to the write
+     one. Mounted beside the inspector they would exist only while a spool happened
+     to be selected. -->
+<NfcWriteDialog
+	open={nfcWriter.writeFor !== null}
+	spool={nfcWriter.writeFor}
+	kind="spool"
+	id={nfcWriter.writeFor?.id ?? 0}
+	onclose={() => nfcWriter.closeWrite()}
+/>
+
+<NfcTagFoundDialog tag={nfcWriter.tag} onclose={() => nfcWriter.dismissTag()} />
 
 <Toaster />
 

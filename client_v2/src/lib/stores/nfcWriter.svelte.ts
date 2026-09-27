@@ -3,8 +3,10 @@ import {
 	listTagFormats,
 	subscribeToWriter,
 	writerConfigured,
+	type TagEvent,
 	type TagFormat
 } from '$lib/api/nfcWriter';
+import type { Spool } from '$lib/types';
 
 // Whether a tag writer is available, and what it can write.
 //
@@ -37,6 +39,27 @@ class NfcWriterState {
 	/** The format last written with, offered as the default next time. */
 	lastFormat = $state<string | null>(null);
 
+	/**
+	 * A tag tapped while nothing was expecting one. Drives the tag-found dialog.
+	 */
+	tag = $state<TagEvent | null>(null);
+
+	/** The spool whose write dialog is open, if any. */
+	writeFor = $state<Spool | null>(null);
+
+	// A tag left resting on the reader keeps being detected -- the reader polls
+	// and cannot say "still the same one". So a tag the user has already dealt
+	// with is remembered and ignored until a different one turns up, which is
+	// what stops the dialog reopening every few seconds. The service suppresses
+	// repeat *forwards* to Spoolman for the same reason, but it cannot know that
+	// this browser has dismissed a dialog, so the two are not redundant.
+	#handled = $state<string | null>(null);
+
+	// Set while a dialog is driving the reader itself. An ambient tap is ignored
+	// then: the tag on the reader is the one being written, and announcing it as
+	// a discovery over the top of that would be nonsense.
+	#claims = $state(0);
+
 	get usable(): boolean {
 		return this.available && this.connected;
 	}
@@ -63,14 +86,63 @@ class NfcWriterState {
 		}
 	}
 
-	/** Start listening for reader status. Returns a teardown function. */
+	/** Start listening for reader events. Returns a teardown function. */
 	start(): () => void {
 		if (!this.available) return () => {};
-		return subscribeToWriter((event) => {
-			if (event.type !== 'reader_status') return;
+		return subscribeToWriter((event) => this.#handle(event));
+	}
+
+	#handle(event: TagEvent) {
+		if (event.type === 'reader_status') {
 			this.connected = !!event.connected;
 			this.error = event.error ?? '';
-		});
+			return;
+		}
+		if (event.type !== 'tag' || !event.uid) return;
+		if (this.#claims > 0) return;
+		if (event.uid === this.#handled) return;
+		// Already on screen: re-setting it would restart the owner lookup for a
+		// tag the user is currently looking at.
+		if (this.tag?.uid === event.uid) return;
+		this.tag = event;
+	}
+
+	/**
+	 * Take the reader for a dialog. Returns the matching release, so a caller can
+	 * hand it straight to a teardown and never have to pair the calls itself.
+	 */
+	claim(): () => void {
+		this.#claims += 1;
+		let released = false;
+		return () => {
+			if (released) return;
+			released = true;
+			this.#claims = Math.max(0, this.#claims - 1);
+		};
+	}
+
+	/** Dismiss the tag-found dialog, and stop this tag raising it again. */
+	dismissTag() {
+		this.#handled = this.tag?.uid ?? this.#handled;
+		this.tag = null;
+	}
+
+	/**
+	 * Treat a tag as dealt with without it having been shown -- used after writing
+	 * or erasing one, which otherwise leaves it sitting on the reader waiting to
+	 * be announced as a fresh discovery.
+	 */
+	suppress(uid: string) {
+		if (uid) this.#handled = uid;
+	}
+
+	/** Open the write dialog for a spool, from wherever. */
+	openWrite(spool: Spool) {
+		this.writeFor = spool;
+	}
+
+	closeWrite() {
+		this.writeFor = null;
 	}
 
 	/**
