@@ -37,6 +37,40 @@ Four tag formats are supported: **OpenTag3D** (the default), **OpenSpool**,
 **nfc2klipper**, and **UID-only** (which writes nothing to the tag and just
 records its serial number).
 
+### Writing a tag
+
+A **Write tag** button joins the spool's own action row, beside Print Labels —
+not tucked away on a separate page.
+
+![The spool action row, showing Adjust weight, Print Labels, Write tag and Archive](.github/images/write-tag-button.png)
+
+The dialog says what it is about to write and how big it is, and — because a
+211-byte payload does not fit every sticker — which chips have room for it
+before you waste one. After writing, it reads the tag back and verifies it.
+
+![The write dialog, showing tag format OpenTag3D, a 211 byte payload, a note about the URL being left off, and a list of chips marked fits or too small](.github/images/write-tag-dialog.png)
+
+The note in that dialog is a real one: the spool's URL did not fit the tag's
+32-byte field, so it was left off rather than written truncated. Anything the
+format has to give up is reported rather than done quietly.
+
+### Restarting the server
+
+Spoolman has no way to restart its own machine, which is least convenient
+exactly when you need it — the server is misbehaving, or an SD card is about to
+come out and should be stopped cleanly first. A **Host** section at the bottom
+of Settings adds it.
+
+![The Host section of Settings, with Restart server and Shut down server rows](.github/images/host-power.png)
+
+Both ask first, and both say what will actually happen.
+
+![A confirmation dialog reading: Restart the server? Spoolman and the tag reader stop cleanly, then the machine restarts. Your library is not touched.](.github/images/restart-confirm.png)
+
+The section hides itself entirely unless the host reports that it will accept
+the request, so an install without the sudoers rule from step 6 shows no
+buttons rather than buttons that fail.
+
 ## Hardware
 
 | | |
