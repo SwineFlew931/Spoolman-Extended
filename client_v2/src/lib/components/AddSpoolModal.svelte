@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { untrack, tick } from 'svelte';
+	import { resolve } from '$app/paths';
 	import Swatch from './Swatch.svelte';
 	import Button from './Button.svelte';
 	import NumberInput from './NumberInput.svelte';
@@ -9,10 +10,12 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import ExtraFieldsSection from './ExtraFieldsSection.svelte';
 	import NewFilamentCards from './NewFilamentCards.svelte';
-	import type { Filament, Extra, MultiColorDirection } from '$lib/types';
+	import type { Filament, Extra, MultiColorDirection, Spool } from '$lib/types';
 	import { inventory } from '$lib/stores/inventory.svelte';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { serverInfo } from '$lib/stores/serverInfo.svelte';
+	import NfcWriteDialog from './nfc/NfcWriteDialog.svelte';
+	import { nfcWriter } from '$lib/stores/nfcWriter.svelte';
 	import { spoolSource } from '$lib/api/spoolSource';
 	import { fields } from '$lib/stores/fields.svelte';
 	import type { EntityType } from '$lib/api/fields';
@@ -46,7 +49,21 @@
 	// when `creating` — a brand-new filament described by the `nf` form.
 	type Choice = { source: 'catalog'; filament: Filament } | { source: 'external'; ext: ExternalFilament };
 
-	let step = $state<1 | 2>(1);
+	let step = $state<1 | 2 | 3>(1);
+
+	// Spools created by the last submit, waiting to be tagged. Tagging is
+	// one-at-a-time by nature, so a batch is walked rather than skipped: adding
+	// four rolls at once is exactly when a pile of new spools needs tags.
+	let tagQueue = $state<Spool[]>([]);
+	let tagIndex = $state(0);
+	let tagWriteOpen = $state(false);
+
+	// Walks the batch. Running off the end means every spool has been dealt with
+	// one way or another, so the modal has nothing left to ask.
+	function nextTag() {
+		if (tagIndex + 1 < tagQueue.length) tagIndex += 1;
+		else close();
+	}
 	let query = $state('');
 	let searchInput = $state<HTMLInputElement | undefined>();
 	let localResults = $state<Filament[]>([]);
@@ -331,6 +348,9 @@
 
 	function reset() {
 		step = 1;
+		tagQueue = [];
+		tagIndex = 0;
+		tagWriteOpen = false;
 		query = '';
 		localResults = [];
 		extSearch.clear();
@@ -404,7 +424,20 @@
 			if (lastUsed) body.last_used = lastUsed;
 			if (Object.keys(extraValues).length) body.extra = extraValues;
 
-			for (let i = 0; i < n; i++) await spoolSource.createSpool(body);
+			const made: Spool[] = [];
+			for (let i = 0; i < n; i++) made.push(await spoolSource.createSpool(body));
+
+			// Offer to tag what was just made -- unless the user is mid-run adding
+			// more, since interrupting that to wave a tag around defeats the point
+			// of the batch flow.
+			if (!andAnother && nfcWriter.available && made.length) {
+				tagQueue = made;
+				tagIndex = 0;
+				step = 3;
+				submitting = false;
+				return;
+			}
+
 			if (andAnother && created) {
 				// Just added a brand-new filament: the overwhelmingly likely next entry
 				// is a sibling of it (the multi-colour shopping trip this flow exists
@@ -599,7 +632,7 @@
 						<span class="cn-sub">{m['add.createNewSub']({ name: serverInfo.externalDbName })}</span>
 					</button>
 				</div>
-			{:else}
+			{:else if step === 2}
 				<div class="body">
 					<!-- Step 2 can create up to three records at once, so it is laid out as one
 					     block per entity — manufacturer, filament, spool — each with its own
@@ -877,12 +910,94 @@
 						</div>
 					</div>
 				</div>
+			{:else}
+				<!-- Step 3. Reached only after a successful add, so everything here is
+				     optional: the spools exist either way and can be tagged later from
+				     their own inspectors. Skipping is a first-class action, not a
+				     dismissal. -->
+				<div class="body">
+					<div class="tag-step">
+						<div class="tag-title">{m['nfc.writeStep.title']()}</div>
+						{#if tagQueue.length > 1}
+							<div class="tag-of">
+								{m['nfc.writeStep.of']({ index: tagIndex + 1, total: tagQueue.length })}
+							</div>
+						{/if}
+						<p class="tag-body">{m['nfc.writeStep.body']()}</p>
+
+						<div class="tag-actions">
+							<Button disabled={!nfcWriter.usable} onclick={() => (tagWriteOpen = true)}>
+								{m['nfc.writeAction']()}
+							</Button>
+							<Button variant="outline" onclick={nextTag}>{m['nfc.skip']()}</Button>
+						</div>
+
+						{#if !nfcWriter.usable}
+							<p class="tag-warn">{nfcWriter.error || m['nfc.reader.offline']()}</p>
+						{/if}
+
+						<div class="tag-foot">
+							<Button
+								variant="outline"
+								href={resolve(`/labels?spools=${tagQueue.map((t) => t.id).join(',')}` as '/labels')}
+								onclick={close}>{m['printing.qrcode.button']()}</Button
+							>
+							<Button variant="outline" onclick={close}>{m['buttons.close']()}</Button>
+						</div>
+					</div>
+				</div>
 			{/if}
 		</div>
 	</div>
 {/if}
 
+<NfcWriteDialog
+	open={tagWriteOpen}
+	spool={tagQueue[tagIndex] ?? null}
+	kind="spool"
+	id={tagQueue[tagIndex]?.id ?? 0}
+	onclose={() => (tagWriteOpen = false)}
+	ondone={() => {
+		tagWriteOpen = false;
+		nextTag();
+	}}
+/>
+
 <style>
+	.tag-step {
+		padding: 6px 2px 2px;
+	}
+	.tag-title {
+		font-weight: 700;
+		font-size: 15px;
+	}
+	.tag-of {
+		margin-top: 2px;
+		font-size: 12px;
+		color: var(--text-dim);
+	}
+	.tag-body {
+		margin: 10px 0 16px;
+		font-size: 13px;
+		color: var(--text-muted);
+	}
+	.tag-actions {
+		display: flex;
+		gap: 8px;
+	}
+	.tag-warn {
+		margin: 10px 0 0;
+		font-size: 12px;
+		color: var(--warning, var(--text-dim));
+	}
+	.tag-foot {
+		display: flex;
+		gap: 8px;
+		justify-content: flex-end;
+		margin-top: 20px;
+		padding-top: 14px;
+		border-top: 1px solid var(--border);
+	}
 	.overlay {
 		position: fixed;
 		inset: 0;
