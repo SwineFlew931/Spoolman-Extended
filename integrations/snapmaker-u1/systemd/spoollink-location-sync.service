@@ -1,0 +1,41 @@
+# Snapmaker U1 -> Spoolman location sync.
+#
+# Deployed outside the Spoolman install on purpose: Spoolman is now a stock
+# checkout that gets replaced on upgrade, and this service needs none of its
+# code -- only its REST API. Same arrangement as the NFC reader service.
+#
+# Copy to /etc/systemd/system/spoollink-location-sync.service, replace the
+# CHANGEME values, then:
+#
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now spoollink-location-sync
+#
+[Unit]
+Description=SpoolLink -> Spoolman Location sync for Snapmaker U1
+Documentation=https://github.com/SwineFlew931/Spoolman-Extended
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=CHANGEME
+WorkingDirectory=/home/CHANGEME/spoollink-sync
+ExecStart=/home/CHANGEME/spoollink-sync/.venv/bin/python3 /home/CHANGEME/spoollink-sync/spoollink_location_sync.py
+
+# Required. The printer's Moonraker; the service refuses to start without it
+# rather than polling an address that might quietly be the wrong one.
+Environment=MOONRAKER_URL=http://CHANGEME:7125
+# Optional. Defaults to the local Spoolman, which is where this normally runs.
+# Deliberately Spoolman's own port, not the reverse proxy on 7900: this is a
+# server-to-server call and should not break when the proxy is reconfigured.
+#Environment=SPOOLMAN_URL=http://127.0.0.1:7912
+#Environment=PRINTER_LABEL=Snapmaker U1
+#Environment=POLL_INTERVAL_SECONDS=5
+# Log what would be written to Spoolman instead of writing it.
+#Environment=SPOOLLINK_DRY_RUN=1
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
