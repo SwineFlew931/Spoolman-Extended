@@ -21,6 +21,7 @@
 	import TagsSection from '../TagsSection.svelte';
 	import Nfc from '@lucide/svelte/icons/nfc';
 	import { nfcWriter } from '$lib/stores/nfcWriter.svelte';
+	import { unlinkTag } from '$lib/api/tags';
 	import Breadcrumbs from '../Breadcrumbs.svelte';
 	import FieldGrid from '../FieldGrid.svelte';
 	import Field from '../Field.svelte';
@@ -225,10 +226,49 @@
 			adjustBusy = false;
 		}
 	}
+	/**
+	 * Archive or unarchive, asking first when archiving would strand a tag.
+	 *
+	 * A spool being archived is finished with, so its tag is about to become a
+	 * sticker on a dead record -- it cannot be reused on the next roll while
+	 * something still claims it, and the duplicate check will refuse to link it.
+	 * Freeing it here is the difference between a tag that can be peeled off and
+	 * reused and one that has to be hunted down later.
+	 *
+	 * It asks rather than just doing it, because releasing a link is not
+	 * reversible from the archived spool: re-tagging means writing the tag again.
+	 */
+	function toggleArchived() {
+		if (!spool.archived && (spool.tags?.length ?? 0) > 0) {
+			confirmArchiveOpen = true;
+			return;
+		}
+		setArchived(!spool.archived);
+	}
+
+	async function archiveAndFreeTags() {
+		archiving = true;
+		try {
+			// Unlink first. If this fails the spool is still active and still
+			// tagged, which is a state the user can simply retry from; archiving
+			// first and failing here would leave a tag claimed by a dead spool,
+			// which is the thing this exists to prevent.
+			for (const tag of spool.tags ?? []) {
+				await unlinkTag({ kind: 'spool', id: spool.id }, tag.uid);
+			}
+			setArchived(true);
+		} catch (e) {
+			toasts.error(m['nfc.archiveFreeFailed']());
+			console.error('Freeing the spool tags failed', e);
+		} finally {
+			archiving = false;
+			confirmArchiveOpen = false;
+		}
+	}
+
 	// Optimistic flip, then persist. The list filters archived spools out by
 	// default, so unarchiving from here is the only way back once one is hidden.
-	function toggleArchived() {
-		const next = !spool.archived;
+	function setArchived(next: boolean) {
 		inventory.patchSpool(spool.id, { archived: next });
 		spoolSource.setSpoolArchived(spool.id, next).catch((e) => {
 			inventory.patchSpool(spool.id, { archived: !next });
@@ -275,6 +315,16 @@
 	// foreign key in place. Warn when there is filament left on it, because at that
 	// point archiving is almost certainly what was meant.
 	let confirmOpen = $state(false);
+	let confirmArchiveOpen = $state(false);
+	let archiving = $state(false);
+
+	// Two messages rather than "1 tag(s)". Spoolman has no plural machinery, and
+	// a spool with several tags is rare enough that branching here is cheaper
+	// than adding some.
+	const archiveWarning = $derived.by(() => {
+		const count = spool.tags?.length ?? 0;
+		return count === 1 ? m['nfc.archiveFreesTag']() : m['nfc.archiveFreesTags']({ count });
+	});
 	let deleting = $state(false);
 
 	// --- change filament ----------------------------------------------------
@@ -379,6 +429,16 @@
 			>
 		</div>
 	</div>
+
+	<ConfirmDialog
+		open={confirmArchiveOpen}
+		busy={archiving}
+		title={m['buttons.archive']()}
+		lines={[archiveWarning]}
+		confirmLabel={archiving ? m['nfc.archiveFreeing']() : m['buttons.archive']()}
+		onconfirm={archiveAndFreeTags}
+		onclose={() => (confirmArchiveOpen = false)}
+	/>
 
 	<ConfirmDialog
 		open={confirmOpen}
