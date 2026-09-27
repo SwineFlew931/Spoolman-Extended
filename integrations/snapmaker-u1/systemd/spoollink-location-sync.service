@@ -26,9 +26,10 @@ ExecStart=/home/CHANGEME/spoollink-sync/.venv/bin/python3 /home/CHANGEME/spoolli
 # rather than polling an address that might quietly be the wrong one.
 Environment=MOONRAKER_URL=http://CHANGEME:7125
 # Optional. Defaults to the local Spoolman, which is where this normally runs.
-# Deliberately Spoolman's own port, not the reverse proxy on 7900: this is a
-# server-to-server call and should not break when the proxy is reconfigured.
-#Environment=SPOOLMAN_URL=http://127.0.0.1:7912
+# Deliberately Spoolman's own loopback port, not the reverse proxy on 7912:
+# this is a server-to-server call and should not break when the proxy is
+# reconfigured.
+#Environment=SPOOLMAN_URL=http://127.0.0.1:7913
 #Environment=PRINTER_LABEL=Snapmaker U1
 #Environment=POLL_INTERVAL_SECONDS=5
 # Log what would be written to Spoolman instead of writing it.

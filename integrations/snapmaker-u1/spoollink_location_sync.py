@@ -56,10 +56,10 @@ import requests
 MOONRAKER_URL = os.environ.get("MOONRAKER_URL", "").rstrip("/")
 
 # Spoolman does have a sensible default: this service is meant to run on the
-# Spoolman host. Deliberately the app's own port rather than the reverse proxy:
-# this is a server-to-server call, so it gains nothing from the proxy and should
-# not break when the proxy is reconfigured.
-SPOOLMAN_URL = os.environ.get("SPOOLMAN_URL", "http://127.0.0.1:7912").rstrip("/")
+# Spoolman host. Deliberately Spoolman's own loopback port rather than the
+# reverse proxy on 7912: this is a server-to-server call, so it gains nothing
+# from the proxy and should not break when the proxy is reconfigured.
+SPOOLMAN_URL = os.environ.get("SPOOLMAN_URL", "http://127.0.0.1:7913").rstrip("/")
 
 PRINTER_LABEL = os.environ.get("PRINTER_LABEL", "Snapmaker U1")
 CHANNELS = [0, 1, 2, 3]

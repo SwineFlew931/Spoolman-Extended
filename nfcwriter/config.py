@@ -34,7 +34,7 @@ ALLOWED_ORIGINS = [o.strip() for o in os.getenv("NFCW_ALLOWED_ORIGINS", "*").spl
 # Read-only, and used for exactly two things: reading a spool so a format can be
 # built from it, and forwarding ambient taps so Spoolman's own scan handling
 # works. This service never writes to the database.
-SPOOLMAN_URL = os.getenv("NFCW_SPOOLMAN_URL", "http://127.0.0.1:7912").rstrip("/")
+SPOOLMAN_URL = os.getenv("NFCW_SPOOLMAN_URL", "http://127.0.0.1:7913").rstrip("/")
 
 # Whether to forward tags tapped when no write is armed to Spoolman's
 # POST /api/v1/tag/scan. That is what makes a paired browser jump to the spool,

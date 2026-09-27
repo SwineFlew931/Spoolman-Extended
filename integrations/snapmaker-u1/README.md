@@ -84,7 +84,7 @@ Spoolman tree) keeps working; this layout is for new ones.
 | Variable | Default | Meaning |
 |---|---|---|
 | `MOONRAKER_URL` | **required** | The printer's Moonraker, e.g. `http://192.168.0.202:7125` |
-| `SPOOLMAN_URL` | `http://127.0.0.1:7912` | Spoolman, normally the same host |
+| `SPOOLMAN_URL` | `http://127.0.0.1:7913` | Spoolman itself, behind the proxy on the same host |
 | `PRINTER_LABEL` | `Snapmaker U1` | Name used in `Location` and `printer_name` |
 | `POLL_INTERVAL_SECONDS` | `5` | Gap between polls |
 | `WATCHDOG_GRACE_SECONDS` | `20` | Mismatch tolerated before forcing `SET_SPOOL_ID` |
