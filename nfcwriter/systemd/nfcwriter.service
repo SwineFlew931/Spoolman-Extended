@@ -17,11 +17,18 @@ Type=simple
 # Spoolman's REST API -- though it usually is.
 User=joshe
 WorkingDirectory=/home/joshe/nfcwriter
-Environment=NFCW_SPOOLMAN_URL=http://127.0.0.1:7912
-# The browser calls this service directly, so Spoolman's origin has to be
-# allowed. Narrow this to the real origin on an untrusted network.
+# Spoolman's own loopback port, not the reverse proxy on 7912: this is a
+# server-to-server call and should not break when the proxy is reconfigured.
+Environment=NFCW_SPOOLMAN_URL=http://127.0.0.1:7913
+# The browser reaches this service through the proxy at /nfcwriter/, which makes
+# it same-origin, so nothing here depends on CORS any more. Left permissive
+# because the listener below is loopback-only: the only thing that can reach it
+# is nginx on this host.
 Environment=NFCW_ALLOWED_ORIGINS=*
-ExecStart=/home/joshe/nfcwriter/.venv/bin/uvicorn nfcwriter.server:app --host 0.0.0.0 --port 7914
+# Loopback only. Everything external arrives via nginx, so there is no reason to
+# accept a connection straight off the network -- and a browser could not use
+# one anyway, which is the whole reason the proxy exists.
+ExecStart=/home/joshe/nfcwriter/.venv/bin/uvicorn nfcwriter.server:app --host 127.0.0.1 --port 7914
 
 # The reader can wedge in a way only a restart clears; that is the whole reason
 # this is a separate process from Spoolman.
