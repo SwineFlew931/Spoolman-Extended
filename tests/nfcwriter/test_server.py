@@ -107,3 +107,32 @@ def test_cors_allows_the_configured_origin(client: TestClient) -> None:
     """Without this header the browser refuses every call before sending it."""
     res = client.get("/status", headers={"origin": "http://spoolman.local:7912"})
     assert "access-control-allow-origin" in {k.lower() for k in res.headers}
+
+
+def test_write_result_reports_the_bytes_the_reader_wrote() -> None:
+    """The regression: the reader says `bytes`, this API says `written_bytes`.
+
+    Reading the wrong key gave 0, and the client renders 0 bytes as "Tag
+    erased." -- so a write that had succeeded, verified and linked announced
+    itself as an erasure.
+    """
+    event = {"type": "write_ok", "uid": "04821457D32A81", "bytes": 187}
+    result = server._result(event, [])  # noqa: SLF001
+    assert result.ok is True
+    assert result.written_bytes == 187
+    assert result.uid == "04821457D32A81"
+
+
+def test_erase_result_has_no_bytes() -> None:
+    """An erase writes nothing, which is what makes 0 ambiguous in the first place."""
+    result = server._result({"type": "write_ok", "uid": "AA", "bytes": 0}, [])  # noqa: SLF001
+    assert result.written_bytes == 0
+    assert result.ok is True
+
+
+def test_failed_write_is_not_ok() -> None:
+    result = server._result(  # noqa: SLF001
+        {"type": "write_failed", "uid": "AA", "message": "tag went away"}, []
+    )
+    assert result.ok is False
+    assert result.message == "tag went away"

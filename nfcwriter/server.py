@@ -23,6 +23,7 @@ import base64
 import contextlib
 import json
 import logging
+import signal
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -56,6 +57,52 @@ logger = logging.getLogger("nfcwriter")
 _shutting_down: asyncio.Event | None = None
 
 
+def _watch_for_shutdown(loop: asyncio.AbstractEventLoop) -> None:
+    """End the event streams when a stop signal arrives, not when the app closes.
+
+    The ordering here is the whole point, and getting it wrong cost a wedged
+    reader. uvicorn shuts down in this order:
+
+        1. stop accepting new connections
+        2. **wait for open connections to close**
+        3. run the lifespan shutdown
+
+    `/events` is an endless stream, so step 2 waits for it forever. Setting the
+    flag in the lifespan shutdown -- step 3 -- cannot work: the stream is waiting
+    for a flag that is only set once the stream has closed. systemd then hits its
+    stop timeout and sends SIGKILL, which skips the reader's release entirely,
+    and a PN532 that is SIGKILLed answers nothing until its power is cycled.
+
+    So the flag is set from the signal handler, which runs before any of that.
+    uvicorn installs its own handlers before startup, so the existing one is
+    captured and still called -- replacing it outright would stop the server
+    shutting down at all.
+
+    Args:
+        loop: The running event loop, for waking the event from the handler.
+
+    """
+
+    def install(sig: signal.Signals) -> None:
+        previous = signal.getsignal(sig)
+
+        def handler(signum: int, frame: object, _prev: object = previous) -> None:
+            if _shutting_down is not None:
+                loop.call_soon_threadsafe(_shutting_down.set)
+            if callable(_prev):
+                _prev(signum, frame)
+
+        signal.signal(sig, handler)
+
+    try:
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            install(sig)
+    except (ValueError, OSError):
+        # Not the main thread -- under TestClient, for instance. Shutdown is then
+        # only as prompt as the lifespan allows, which is fine for a test.
+        logger.debug("Could not install signal handlers; shutdown may be slow")
+
+
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Run the reader for as long as the server is up.
@@ -69,7 +116,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """
     global _shutting_down  # noqa: PLW0603 - one per process, created on the running loop
     _shutting_down = asyncio.Event()
-    bus.bind(asyncio.get_running_loop())
+    loop = asyncio.get_running_loop()
+    _watch_for_shutdown(loop)
+    bus.bind(loop)
     service.start()
     logger.info("nfcwriter listening on %s:%d", config.HOST, config.PORT)
     logger.info("Spoolman at %s, scan forwarding %s", config.SPOOLMAN_URL,
@@ -78,9 +127,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        # Ends the event streams first, so uvicorn can close their connections
-        # and actually reach the reader shutdown below, rather than being killed
-        # while waiting and skipping it.
+        # Belt and braces. By the time this runs the signal handler has already
+        # set it -- and it has to have, because uvicorn drains connections
+        # *before* running this block. See _watch_for_shutdown.
         if _shutting_down is not None:
             _shutting_down.set()
         task.cancel()
@@ -289,12 +338,29 @@ async def _await_result(request_id: str, timeout: float) -> dict[str, Any]:
 
 
 def _result(event: dict[str, Any], notes: list[str]) -> OperationResult:
-    ok = event.get("type") == "write_ok"
+    """Turn a reader event into the API's result.
+
+    The reader names the field `bytes`; this API calls it `written_bytes`,
+    because `bytes` is a builtin and a poor field name in a public schema. That
+    rename is the whole reason this function needs care: reading the wrong key
+    silently yields 0, and 0 is indistinguishable from an erase -- a successful
+    write then reported itself as "Tag erased." `written_bytes` is still
+    accepted in case the reader is ever brought into line.
+
+    Args:
+        event: The reader's `write_ok` or `write_failed` event.
+        notes: Warnings the format produced about the content.
+
+    Returns:
+        OperationResult: What to report to the caller.
+
+    """
+    written = event.get("bytes", event.get("written_bytes"))
     return OperationResult(
-        ok=ok,
+        ok=event.get("type") == "write_ok",
         uid=str(event.get("uid") or ""),
         message=str(event.get("message") or ""),
-        written_bytes=int(event.get("written_bytes") or 0),
+        written_bytes=int(written or 0),
         notes=notes,
     )
 

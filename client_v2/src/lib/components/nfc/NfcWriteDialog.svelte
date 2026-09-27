@@ -14,6 +14,7 @@
 	// `linkTag` the by-hand flow uses. Writing first matters: a link to a tag that
 	// then failed to write is a lie the user cannot see, whereas a written tag that
 	// failed to link is visible and re-linkable from the tag list.
+	import { untrack } from 'svelte';
 	import Button from '../Button.svelte';
 	import X from '@lucide/svelte/icons/x';
 	import * as m from '$lib/paraglide/messages';
@@ -89,14 +90,25 @@
 	// standardises on one format, so re-choosing it for every spool is the kind of
 	// friction that stops a feature being used; and unlike a stale in-memory value,
 	// a remembered choice is one the user made on purpose and can see in the field.
+	//
+	// Everything inside is untracked, and that is load-bearing rather than tidy.
+	// This is a reset that should happen when the dialog opens and at no other
+	// time, but it reads `nfcWriter.lastFormat` -- which a successful write then
+	// sets via rememberFormat(). Tracked, that made writing re-run this reset:
+	// `result` was nulled while `await link()` was still in flight, so a write
+	// that had genuinely succeeded finished with an empty dialog and no
+	// confirmation. Found by writing a real tag; nothing failed, the report
+	// just vanished.
 	$effect(() => {
 		if (!open) return;
-		phase = 'idle';
-		result = null;
-		linked = false;
-		linkWarning = '';
-		errorText = '';
-		format = nfcWriter.lastFormat || nfcWriter.formats[0]?.key || '';
+		untrack(() => {
+			phase = 'idle';
+			result = null;
+			linked = false;
+			linkWarning = '';
+			errorText = '';
+			format = nfcWriter.lastFormat || nfcWriter.formats[0]?.key || '';
+		});
 	});
 
 	// Re-render the preview whenever the spool or format changes, so the
