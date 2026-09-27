@@ -1,3 +1,27 @@
+> ## This is a companion to Spoolman, not a replacement
+>
+> This branch adds **NFC tag writing** and **Snapmaker U1 location sync** on top of
+> an otherwise **stock Spoolman 0.27.0**. Spoolman's Python is untouched: the
+> change is 4 modified files in the SvelteKit client, plus new files that stand
+> on their own. Everything below this box is upstream's README, unchanged.
+>
+> | | |
+> |---|---|
+> | Write a tag | from a spool's action row, with a capacity check and read-back verification |
+> | Tap a tag | a dialog says what it is, and offers open / rewrite / erase |
+> | Archive a spool | offers to free its tag for another roll |
+> | Add a spool | ends by offering to tag it, walking a batch one at a time |
+> | Restart / shut down | the host, from Settings |
+> | Snapmaker U1 | mirrors each channel's spool into Location, and binds a channel when the printer's own resolve stalls |
+>
+> **Start here:** [`nfcwriter/README.md`](nfcwriter/README.md) for the reader and
+> writer service, and
+> [`integrations/snapmaker-u1/README.md`](integrations/snapmaker-u1/README.md)
+> for the U1 sync.
+>
+> It needs a real PN532 reader and a machine to run it on, so it is published as
+> something to read and adapt rather than as a product. There is no installer.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Donkie/Spoolman/assets/2332094/4e6e80ac-c7be-4ad2-9a33-dedc1b5ba30e">
   <source media="(prefers-color-scheme: light)" srcset="https://github.com/Donkie/Spoolman/assets/2332094/3c120b3a-1422-42f6-a16b-8d5a07c33000">
