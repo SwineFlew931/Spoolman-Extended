@@ -1,0 +1,19 @@
+# Lets the NFC writer service reboot or shut down this machine, and nothing else.
+#
+#   sudo install -m 0440 -o root -g root spoolman-power /etc/sudoers.d/spoolman-power
+#   sudo visudo -cf /etc/sudoers.d/spoolman-power     # verify before trusting it
+#
+# Replace joshe with the user the service runs as. Two exact commands, no
+# wildcards, no shell: sudoers matches the full path and argument, so this
+# grants `systemctl reboot` and `systemctl poweroff` and cannot be talked into
+# `systemctl stop something-else`.
+#
+# Without this file the endpoints report themselves unavailable and refuse, and
+# the GUI hides the controls -- installing it is the deliberate act that grants
+# the privilege.
+#
+# Note: on a stock Raspberry Pi OS the first user already has (ALL) NOPASSWD:
+# ALL, so this file adds nothing there and the endpoints would work without it.
+# What keeps the endpoint to these two commands in that case is the closed
+# action mapping in nfcwriter/power.py, not sudoers.
+joshe ALL=(root) NOPASSWD: /usr/bin/systemctl reboot, /usr/bin/systemctl poweroff

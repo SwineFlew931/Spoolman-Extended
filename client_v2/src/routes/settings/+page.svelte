@@ -4,6 +4,7 @@
 	import SettingRow from '$components/settings/SettingRow.svelte';
 	import ExtraFieldsManager from '$components/settings/ExtraFieldsManager.svelte';
 	import ScannerSettings from '$components/settings/ScannerSettings.svelte';
+	import HostPower from '$components/settings/HostPower.svelte';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import { settings } from '$lib/stores/settings.svelte';
 	import { theme, type ThemePref } from '$lib/stores/theme.svelte';
@@ -180,6 +181,9 @@
 			<p>{m['settings.extraFields.description.tableViews']()}</p>
 		</div>
 		<ExtraFieldsManager entity={fieldsEntity} onentity={gotoEntity} />
+
+		<!-- Last on the page on purpose: the only controls here that stop the server. -->
+		<HostPower />
 	</div>
 </div>
 

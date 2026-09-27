@@ -30,12 +30,12 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from nfcwriter import capacity, config, formats, identifiers, spoolman
+from nfcwriter import capacity, config, formats, identifiers, power, spoolman
 from nfcwriter.events import bus
 from nfcwriter.reader import service
 
@@ -446,6 +446,42 @@ async def erase(request: EraseRequest) -> OperationResult:
 @app.post("/cancel")
 async def cancel() -> dict[str, bool]:
     service.cancel()
+    return {"ok": True}
+
+
+class PowerActions(BaseModel):
+    reboot: bool
+    shutdown: bool
+
+
+@app.get("/power")
+async def power_actions() -> PowerActions:
+    """Which power actions this host will accept, so a GUI can hide the rest."""
+    return PowerActions(**power.available())
+
+
+@app.post("/power/{action}")
+async def run_power_action(action: str, background: BackgroundTasks) -> dict[str, bool]:
+    """Reboot or shut the machine down, answering before it goes away.
+
+    The action runs from a background task: FastAPI sends the response first, so
+    the browser is told the request was accepted rather than losing the
+    connection mid-reboot and showing a network error for a button that worked.
+    """
+    if action not in power.ACTIONS:
+        raise HTTPException(status_code=404, detail=f"unknown power action {action!r}")
+    if not config.POWER_ENABLED:
+        raise HTTPException(status_code=403, detail="power actions are disabled on this host")
+    if not power.permitted(action):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"not permitted to {action} this host -- install the sudoers drop-in "
+                "from nfcwriter/sudoers/"
+            ),
+        )
+    logger.info("power action requested: %s", action)
+    background.add_task(power.trigger, action)
     return {"ok": True}
 
 

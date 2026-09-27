@@ -1,4 +1,4 @@
-"""Insert the nfc.* keys into en/common.json in sorted position.
+"""Insert the keys this fork adds into en/common.json, in sorted position.
 
 A script rather than a one-off edit because `npm run build` strips every locale
 file in place (upstream's strip-empty-locales prebuild), and restoring them with
@@ -8,6 +8,22 @@ import pathlib
 import sys
 
 NEW = {
+    "host.failed": "The server refused: {{error}}",
+    "host.reboot.accepted": "Restarting. This page will work again once the server is back, usually within a minute.",
+    "host.reboot.action": "Restart",
+    "host.reboot.body": "Spoolman and the tag reader stop cleanly, then the machine restarts. Your library is not touched.",
+    "host.reboot.desc": "Restart the machine Spoolman runs on.",
+    "host.reboot.confirm": "Restart it",
+    "host.reboot.label": "Restart server",
+    "host.reboot.title": "Restart the server?",
+    "host.shutdown.accepted": "Shutting down. Wait for the activity light to stop before cutting power.",
+    "host.shutdown.action": "Shut down",
+    "host.shutdown.body": "Everything stops cleanly and the machine powers off. It stays off until you switch it on by hand -- nothing here can wake it.",
+    "host.shutdown.desc": "Stop everything and power the machine off.",
+    "host.shutdown.confirm": "Shut it down",
+    "host.shutdown.label": "Shut down server",
+    "host.shutdown.title": "Shut the server down?",
+    "host.tab": "Host",
     "nfc.archiveFreeFailed": "Could not free the tag. The spool has not been archived.",
     "nfc.archiveFreeing": "Freeing the tag...",
     "nfc.archiveFreesTag": "Archiving this spool releases its tag, so it can be used on another roll. The tag is not erased.",

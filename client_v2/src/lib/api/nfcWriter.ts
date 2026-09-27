@@ -230,6 +230,34 @@ export function eraseTag(opts: { timeout?: number; signal?: AbortSignal } = {}):
 	return post<OperationResult>('/erase', { timeout: opts.timeout ?? 60 }, opts.signal);
 }
 
+export type PowerAction = 'reboot' | 'shutdown';
+
+export interface PowerActions {
+	reboot: boolean;
+	shutdown: boolean;
+}
+
+/**
+ * Which power actions this host will accept.
+ *
+ * Asked rather than assumed: the privilege comes from a sudoers drop-in that
+ * may not be installed, and offering a button that can only fail is worse than
+ * not offering it.
+ */
+export function getPowerActions(): Promise<PowerActions> {
+	return request<PowerActions>('/power');
+}
+
+/**
+ * Reboot or shut down the machine Spoolman runs on.
+ *
+ * Resolves when the host has accepted the request, not when it has carried it
+ * out -- by then this page is talking to a machine that is on its way down.
+ */
+export function runPowerAction(action: PowerAction): Promise<{ ok: boolean }> {
+	return post<{ ok: boolean }>(`/power/${action}`, {});
+}
+
 /**
  * Subscribe to reader events. Returns a teardown function.
  *

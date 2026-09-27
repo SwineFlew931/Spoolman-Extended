@@ -51,6 +51,14 @@ READER_ID = os.getenv("NFCW_READER_ID", "nfcwriter")
 # every few seconds. A different tag is always news and ignores this.
 RESCAN_INTERVAL = float(os.getenv("NFCW_RESCAN_INTERVAL", "30"))
 
+# --- host power actions ----------------------------------------------------
+# Whether /power may reboot or shut the machine down. On by default because the
+# sudoers drop-in is what actually grants the privilege: without it the
+# endpoints report themselves unavailable and refuse, so the default cannot
+# hand out anything that was not deliberately installed. Set to 0 to refuse
+# even where the drop-in is present.
+POWER_ENABLED = os.getenv("NFCW_POWER", "true").lower() not in ("0", "false", "no")
+
 # --- polling behaviour -----------------------------------------------------
 # Unchanged from the integrated daemon; each value is explained where it is used.
 RETAP_GRACE = 3.0
