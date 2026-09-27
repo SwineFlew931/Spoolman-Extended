@@ -125,6 +125,10 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests*/*" = ["ANN201", "ASYNC210", "S101", "PLR2004", "D103", "TID252"]
+# The U1 integration's tests live beside the script they cover rather than under
+# tests/, because that directory is copied to the target machine as a unit. They
+# are tests, so they get what tests get.
+"integrations/*/test_*.py" = ["ANN201", "ASYNC210", "S101", "PLR2004", "D103", "TID252", "INP001"]
 "migrations/versions/*" = ["N999"]
 # Developer tooling, not shipped code: stdout is the user interface (T201), the
 # generated test data is deliberately random (S311) and full of literal weights,

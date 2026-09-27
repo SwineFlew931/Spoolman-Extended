@@ -154,41 +154,50 @@ class TestAbbreviate:
     """
 
     def test_a_value_that_fits_is_left_exactly_as_it_is(self):
+        """A subtype within the limit is written verbatim, and silently."""
         notes = []
         assert ot.abbreviate("Basic", ot.MATERIAL_LEN, notes) == "Basic"
         assert notes == [], "nothing was given up, so there is nothing to report"
 
     def test_a_known_subtype_uses_its_short_form(self):
+        """The table wins first, and the caller is told what was substituted."""
         notes = []
         assert ot.abbreviate("Dual Color Silk", ot.MATERIAL_LEN, notes) == "DCS"
         assert "written as 'DCS'" in notes[0]
 
     def test_the_lookup_ignores_case(self):
+        """How the subtype happens to be capitalised is not a reason to miss the table."""
         assert ot.abbreviate("TRI COLOR SILK", ot.MATERIAL_LEN, []) == "TCS"
 
     def test_industry_short_forms_are_preferred_over_initials(self):
+        """CF is what the spool is labelled, so a tag saying CF is legible to a stranger."""
         # "CF" is what the spool is labelled; "CF" beats deriving something else.
         assert ot.abbreviate("Carbon Fiber", ot.MATERIAL_LEN, []) == "CF"
         assert ot.abbreviate("Glass Fibre", ot.MATERIAL_LEN, []) == "GF"
 
     def test_an_unknown_multi_word_value_becomes_initials(self):
+        """Initials read as an abbreviation; a truncated first word reads as a whole one."""
         assert ot.abbreviate("Extra Sparkly Stuff", ot.MATERIAL_LEN, []) == "ESS"
 
     def test_a_listed_word_uses_the_table_not_the_fallback(self):
+        """Sparkle would squeeze to Sprkl, but the table has the better answer."""
         # "Sparkle" would squeeze to "Sprkl"; the table's "SPRKL" wins.
         assert ot.abbreviate("Sparkle", ot.MATERIAL_LEN, []) == "SPRKL"
 
     def test_an_unknown_single_word_keeps_its_first_letter_and_drops_vowels(self):
+        """One word has no initials to take, so it is squeezed instead."""
         assert ot.abbreviate("Gossamer", ot.MATERIAL_LEN, []) == "Gssmr"
 
     def test_anything_derived_is_still_cut_to_the_limit(self):
+        """However the short form is arrived at, it has to fit the field."""
         got = ot.abbreviate("Alpha Beta Gamma Delta Epsilon Zeta", ot.MATERIAL_LEN, [])
         assert len(got) <= ot.MATERIAL_LEN
 
     def test_a_vowel_only_tail_does_not_produce_an_empty_value(self):
+        """Dropping every vowel must still leave something to write."""
         assert ot.abbreviate("Aeiouae", ot.MATERIAL_LEN, []) == "A"
 
     def test_every_listed_short_form_actually_fits(self):
-        too_long = {k: v for k, v in ot.MODIFIER_ABBREVIATIONS.items()
-                    if len(v) > ot.MATERIAL_LEN}
+        """A short form longer than the field would be truncated in turn."""
+        too_long = {k: v for k, v in ot.MODIFIER_ABBREVIATIONS.items() if len(v) > ot.MATERIAL_LEN}
         assert too_long == {}, "a short form longer than the field would be truncated in turn"

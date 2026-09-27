@@ -239,10 +239,7 @@ def _from_usb_ids(ids: set[tuple[int, int]]) -> str:
         msg = f"no USB serial bridge matching {wanted} (found: {seen})"
         raise ReaderNotFoundError(msg)
     where = ", ".join(f"{p.device}@{p.location}" for p in matches)
-    msg = (
-        f"{len(matches)} bridges match {wanted} ({where}); "
-        f"set NFCD_USB_LOCATION to the port the reader is in"
-    )
+    msg = f"{len(matches)} bridges match {wanted} ({where}); set NFCD_USB_LOCATION to the port the reader is in"
     raise ReaderNotFoundError(msg)
 
 

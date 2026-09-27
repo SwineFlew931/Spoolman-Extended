@@ -42,15 +42,20 @@ GRACE_SECONDS = 0.5
 
 
 def _systemctl() -> str:
-    """The absolute path sudo will be asked about.
+    """Resolve the absolute path sudo will be asked about.
 
     sudoers matches on the path, so a bare name would not match the rule.
     """
     return shutil.which("systemctl") or "/usr/bin/systemctl"
 
 
+def _sudo() -> str:
+    """Resolve sudo's absolute path, for the same reason as _systemctl."""
+    return shutil.which("sudo") or "/usr/bin/sudo"
+
+
 def _command(action: str) -> list[str]:
-    return ["sudo", "-n", _systemctl(), ACTIONS[action]]
+    return [_sudo(), "-n", _systemctl(), ACTIONS[action]]
 
 
 def permitted(action: str) -> bool:
@@ -63,8 +68,8 @@ def permitted(action: str) -> bool:
     if action not in ACTIONS:
         return False
     try:
-        result = subprocess.run(  # noqa: S603 - fixed argv, no shell, closed action set
-            ["sudo", "-n", "-l", _systemctl(), ACTIONS[action]],
+        result = subprocess.run(
+            [_sudo(), "-n", "-l", _systemctl(), ACTIONS[action]],
             capture_output=True,
             timeout=5,
             check=False,
@@ -88,7 +93,9 @@ async def trigger(action: str) -> None:
     command = _command(action)
     logger.info("running %s", " ".join(command))
     try:
-        subprocess.Popen(command)  # noqa: S603 - fixed argv, no shell, closed action set
+        # Deliberately not awaited: the machine is about to go down, so there is
+        # no exit status worth waiting for and nothing left to report it to.
+        subprocess.Popen(command)  # noqa: ASYNC220
     except (OSError, subprocess.SubprocessError):
         # Nothing useful to tell the caller by now: it has its 200 and the
         # browser may already be gone. The log is the only place left.

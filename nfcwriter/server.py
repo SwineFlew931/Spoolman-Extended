@@ -121,8 +121,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     bus.bind(loop)
     service.start()
     logger.info("nfcwriter listening on %s:%d", config.HOST, config.PORT)
-    logger.info("Spoolman at %s, scan forwarding %s", config.SPOOLMAN_URL,
-                "on" if config.FORWARD_SCANS else "off")
+    logger.info("Spoolman at %s, scan forwarding %s", config.SPOOLMAN_URL, "on" if config.FORWARD_SCANS else "off")
     task = asyncio.create_task(_forward_ambient_scans())
     try:
         yield
@@ -361,10 +360,7 @@ async def _await_result(request_id: str, timeout: float) -> dict[str, Any]:
             async with asyncio.timeout(timeout):
                 while True:
                     event = await queue.get()
-                    if (
-                        event.get("type") in ("write_ok", "write_failed")
-                        and event.get("request_id") == request_id
-                    ):
+                    if event.get("type") in ("write_ok", "write_failed") and event.get("request_id") == request_id:
                         return event
         except TimeoutError as exc:
             service.cancel()
@@ -415,7 +411,7 @@ async def write(request: WriteRequest) -> OperationResult:
 
     request_id = uuid.uuid4().hex
     # A UID-only format writes nothing, so the reader is armed to read rather
-        # than write; the tag it reports is still the one to link.
+    # than write; the tag it reports is still the one to link.
     action = "write" if definition.writes_tag and records else "read"
     service.arm(action, records, request_id)
     try:
@@ -475,10 +471,7 @@ async def run_power_action(action: str, background: BackgroundTasks) -> dict[str
     if not power.permitted(action):
         raise HTTPException(
             status_code=403,
-            detail=(
-                f"not permitted to {action} this host -- install the sudoers drop-in "
-                "from nfcwriter/sudoers/"
-            ),
+            detail=(f"not permitted to {action} this host -- install the sudoers drop-in from nfcwriter/sudoers/"),
         )
     logger.info("power action requested: %s", action)
     background.add_task(power.trigger, action)

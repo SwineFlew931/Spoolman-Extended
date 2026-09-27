@@ -18,12 +18,7 @@
 	import SettingRow from './SettingRow.svelte';
 	import Button from '../Button.svelte';
 	import ConfirmDialog from '../ConfirmDialog.svelte';
-	import {
-		getPowerActions,
-		runPowerAction,
-		type PowerAction,
-		type PowerActions
-	} from '$lib/api/nfcWriter';
+	import { getPowerActions, runPowerAction, type PowerAction, type PowerActions } from '$lib/api/nfcWriter';
 	import * as m from '$lib/paraglide/messages';
 
 	let actions = $state<PowerActions | null>(null);
@@ -72,9 +67,7 @@
 		}
 	} as const;
 
-	let offered = $derived(
-		(['reboot', 'shutdown'] as PowerAction[]).filter((a) => actions?.[a])
-	);
+	let offered = $derived((['reboot', 'shutdown'] as PowerAction[]).filter((a) => actions?.[a]));
 
 	async function run(action: PowerAction) {
 		busy = true;

@@ -44,6 +44,7 @@ import json
 import logging
 import os
 import time
+from pathlib import Path
 from urllib.parse import quote
 
 import requests
@@ -73,8 +74,8 @@ WATCHDOG_GRACE_SECONDS = float(os.environ.get("WATCHDOG_GRACE_SECONDS", "20"))
 # touches spools without the printer having asked for it.
 DRY_RUN = os.environ.get("SPOOLLINK_DRY_RUN", "").lower() in {"1", "true", "yes"}
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-CARD_UID_MAP_PATH = os.environ.get("CARD_UID_MAP_PATH", os.path.join(SCRIPT_DIR, "card_uid_map.json"))
+SCRIPT_DIR = Path(__file__).resolve().parent
+CARD_UID_MAP_PATH = Path(os.environ.get("CARD_UID_MAP_PATH", SCRIPT_DIR / "card_uid_map.json"))
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -91,7 +92,7 @@ def location_for_channel(channel: int) -> str:
 def load_card_uid_map() -> dict:
     """Read the optional hand-maintained UID overrides."""
     try:
-        with open(CARD_UID_MAP_PATH) as f:
+        with CARD_UID_MAP_PATH.open() as f:
             return {k.upper(): v for k, v in json.load(f).items()}
     except FileNotFoundError:
         return {}
@@ -105,7 +106,8 @@ def load_card_uid_map() -> dict:
 SPOOLMAN_LOOKUP_TTL = float(os.environ.get("SPOOLMAN_LOOKUP_TTL", "60"))
 
 _spoolman_uid_cache: dict = {}
-_spoolman_uid_fetched_at = 0.0
+# When the cache was filled. In a dict so refreshing it needs no `global`.
+_spoolman_uid_state: dict = {"fetched_at": 0.0}
 
 # UIDs already reported as claimed by no tag, so the reconcile says it once
 # per UID rather than every time it runs.
@@ -130,7 +132,7 @@ def field_uids(raw: object) -> list[str]:
 
 
 def spool_tag_uids(spool: dict) -> list[str]:
-    """The UIDs bound to a spool in 0.27's tag table."""
+    """Return the UIDs bound to a spool in 0.27's tag table."""
     return [t["uid"].strip().upper() for t in (spool.get("tags") or []) if t.get("uid")]
 
 
@@ -168,9 +170,8 @@ def build_uid_map(spools: list[dict]) -> dict:
 
 def spoolman_uid_map() -> dict:
     """UID -> spool id from Spoolman, cached for SPOOLMAN_LOOKUP_TTL seconds."""
-    global _spoolman_uid_fetched_at
     now = time.monotonic()
-    if _spoolman_uid_cache and now - _spoolman_uid_fetched_at < SPOOLMAN_LOOKUP_TTL:
+    if _spoolman_uid_cache and now - _spoolman_uid_state["fetched_at"] < SPOOLMAN_LOOKUP_TTL:
         return _spoolman_uid_cache
 
     spools = fetch_spools()
@@ -181,7 +182,7 @@ def spoolman_uid_map() -> dict:
 
     _spoolman_uid_cache.clear()
     _spoolman_uid_cache.update(build_uid_map(spools))
-    _spoolman_uid_fetched_at = now
+    _spoolman_uid_state["fetched_at"] = now
     reconcile_card_uids(spools)
     return _spoolman_uid_cache
 
@@ -321,12 +322,85 @@ def handle_lane_update(channel: int, old_spool_id: int, new_spool_id: int) -> No
         patch_spool(new_spool_id, location_for_channel(channel))
 
 
+def _expected_spool(channel: int, uid: str, card_uid_map: dict, warned: dict) -> int | None:
+    """Work out which spool a card belongs to, warning once when nothing knows.
+
+    The hand-maintained file wins when it has an answer, so anything that worked
+    before behaves the same; Spoolman is consulted only for what it does not
+    cover.
+
+    Args:
+        channel: The channel the card was read on.
+        uid: The card UID, uppercase hex.
+        card_uid_map: The hand-maintained overrides.
+        warned: Per-channel record of the last UID warned about, updated here.
+
+    Returns:
+        int | None: The spool id, or None if nothing claims this card.
+
+    """
+    expected = card_uid_map.get(uid)
+    if expected is None:
+        expected = spoolman_uid_map().get(uid)
+    if expected is None and warned.get(channel) != uid:
+        log.warning(
+            "ch%s: card UID %s is not in %s and no spool in Spoolman "
+            "claims it -- bind it once (write the tag from Spoolman, "
+            "or use the Filament Manager UI or SET_SPOOL_ID)",
+            channel,
+            uid,
+            CARD_UID_MAP_PATH,
+        )
+        warned[channel] = uid
+    return expected
+
+
+def _watch_channel(
+    channel: int,
+    uid: str,
+    current_spool_id: int,
+    now: float,
+    card_uid_map: dict,
+    state: dict,
+) -> None:
+    """Force a channel's binding when the card and the lane disagree for long enough.
+
+    Args:
+        channel: The channel to check.
+        uid: The card UID currently read there, empty if none.
+        current_spool_id: What the lane believes is loaded.
+        now: A monotonic timestamp, shared across the channels in one pass.
+        card_uid_map: The hand-maintained overrides.
+        state: The per-channel mismatch, forced and warned records.
+
+    """
+    mismatch_since, last_forced = state["mismatch_since"], state["last_forced"]
+
+    def settled() -> None:
+        mismatch_since.pop(channel, None)
+        last_forced.pop(channel, None)
+
+    if not uid:
+        settled()
+        return
+
+    expected = _expected_spool(channel, uid, card_uid_map, state["warned"])
+    if expected is None:
+        return
+    if expected == current_spool_id:
+        settled()
+        return
+
+    first_seen = mismatch_since.setdefault(channel, now)
+    if now - first_seen >= WATCHDOG_GRACE_SECONDS and last_forced.get(channel) != expected:
+        force_spool_id(channel, expected)
+        last_forced[channel] = expected
+
+
 def run() -> None:
     """Poll the printer forever, mirroring lane state into Spoolman."""
-    last_spool_id = {}
-    mismatch_since = {}
-    last_forced = {}
-    last_warned_unknown_uid = {}
+    last_spool_id: dict = {}
+    state = {"mismatch_since": {}, "last_forced": {}, "warned": {}}
     initialized = False
 
     # Mirror what Spoolman knows before the first poll, so the printer's own
@@ -362,41 +436,8 @@ def run() -> None:
                 handle_lane_update(channel, last_spool_id.get(channel, 0), current_spool_id)
                 last_spool_id[channel] = current_spool_id
 
-            # Watchdog: does the physically-loaded card agree with spool_id?
             uid = card_uid_hex(filament_info[channel]["CARD_UID"]) if channel < len(filament_info) else ""
-            if not uid:
-                mismatch_since.pop(channel, None)
-                last_forced.pop(channel, None)
-                continue
-
-            # The file wins when it has an answer, so nothing that worked before
-            # behaves differently; Spoolman is consulted only for what it does
-            # not cover.
-            expected_spool_id = card_uid_map.get(uid)
-            if expected_spool_id is None:
-                expected_spool_id = spoolman_uid_map().get(uid)
-            if expected_spool_id is None:
-                if last_warned_unknown_uid.get(channel) != uid:
-                    log.warning(
-                        "ch%s: card UID %s is not in %s and no spool in Spoolman "
-                        "claims it -- bind it once (write the tag from Spoolman, "
-                        "or use the Filament Manager UI or SET_SPOOL_ID)",
-                        channel,
-                        uid,
-                        CARD_UID_MAP_PATH,
-                    )
-                    last_warned_unknown_uid[channel] = uid
-                continue
-
-            if expected_spool_id == current_spool_id:
-                mismatch_since.pop(channel, None)
-                last_forced.pop(channel, None)
-                continue
-
-            first_seen = mismatch_since.setdefault(channel, now)
-            if now - first_seen >= WATCHDOG_GRACE_SECONDS and last_forced.get(channel) != expected_spool_id:
-                force_spool_id(channel, expected_spool_id)
-                last_forced[channel] = expected_spool_id
+            _watch_channel(channel, uid, current_spool_id, now, card_uid_map, state)
 
         if not initialized:
             log.info("initial lane state: %s", last_spool_id)

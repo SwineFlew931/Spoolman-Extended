@@ -51,9 +51,7 @@
 	const holderName = $derived.by(() => {
 		if (!holder) return '';
 		if (holder.kind === 'filament') {
-			const owner = holder.filament.vendorId
-				? inventory.vendorById(holder.filament.vendorId)
-				: undefined;
+			const owner = holder.filament.vendorId ? inventory.vendorById(holder.filament.vendorId) : undefined;
 			return describeFilament(holder.filament, owner);
 		}
 		const spool = holder.spool;
