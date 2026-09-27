@@ -19,6 +19,9 @@
 	import SectionLabel from '../SectionLabel.svelte';
 	import ExtraFieldsSection from '../ExtraFieldsSection.svelte';
 	import TagsSection from '../TagsSection.svelte';
+	import NfcWriteDialog from '../nfc/NfcWriteDialog.svelte';
+	import Nfc from '@lucide/svelte/icons/nfc';
+	import { nfcWriter } from '$lib/stores/nfcWriter.svelte';
 	import Breadcrumbs from '../Breadcrumbs.svelte';
 	import FieldGrid from '../FieldGrid.svelte';
 	import Field from '../Field.svelte';
@@ -274,6 +277,7 @@
 	// point archiving is almost certainly what was meant.
 	let confirmOpen = $state(false);
 	let deleting = $state(false);
+	let writeOpen = $state(false);
 
 	// --- change filament ----------------------------------------------------
 	// Kept out of the inline-edit path: swapping the filament moves the spool's
@@ -352,6 +356,11 @@
 				title={m['printing.qrcode.button']()}
 				><Printer size={15} /> <span class="btn-label">{m['printing.qrcode.button']()}</span></Button
 			>
+			{#if nfcWriter.usable}
+				<Button variant="outline" onclick={() => (writeOpen = true)} title={m['nfc.writeAction']()}
+					><Nfc size={15} /> <span class="btn-label">{m['nfc.writeAction']()}</span></Button
+				>
+			{/if}
 			<Button
 				variant="outline"
 				onclick={toggleArchived}
@@ -372,6 +381,8 @@
 			>
 		</div>
 	</div>
+
+	<NfcWriteDialog open={writeOpen} {spool} kind="spool" id={spool.id} onclose={() => (writeOpen = false)} />
 
 	<ConfirmDialog
 		open={confirmOpen}
@@ -516,7 +527,7 @@
 
 			<ExtraFieldsSection entity="spool" extra={spool.extra} onchange={extraSaver.change} manage />
 
-			<TagsSection kind="spool" id={spool.id} tags={spool.tags} {spool} />
+			<TagsSection kind="spool" id={spool.id} tags={spool.tags} />
 		</div>
 
 		<div class="col">

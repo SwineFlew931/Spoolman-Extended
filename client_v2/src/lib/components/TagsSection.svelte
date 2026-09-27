@@ -13,15 +13,12 @@
 	// not one of the things you do every day.
 	import SectionLabel from './SectionLabel.svelte';
 	import AddTagModal from './AddTagModal.svelte';
-	import NfcWriteDialog from './nfc/NfcWriteDialog.svelte';
 	import ConfirmDialog from './ConfirmDialog.svelte';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Nfc from '@lucide/svelte/icons/nfc';
-	import PenLine from '@lucide/svelte/icons/pen-line';
 	import X from '@lucide/svelte/icons/x';
-	import type { Spool, Tag } from '$lib/types';
+	import type { Tag } from '$lib/types';
 	import { unlinkTag, type TagKind } from '$lib/api/tags';
-	import { nfcWriter } from '$lib/stores/nfcWriter.svelte';
 	import { toasts } from '$lib/stores/toasts.svelte';
 	import { formatShortDate } from '$lib/utils/datetime';
 	import * as m from '$lib/paraglide/messages';
@@ -31,21 +28,10 @@
 		kind: TagKind;
 		id: number | string;
 		tags: Tag[];
-		/**
-		 * The spool itself, when this is a spool's section. Only needed to write a
-		 * tag -- the writer service has no database and is sent the whole spool --
-		 * so it is optional, and without it only linking is offered.
-		 */
-		spool?: Spool | null;
 	}
-	let { kind, id, tags, spool = null }: Props = $props();
+	let { kind, id, tags }: Props = $props();
 
 	let addOpen = $state(false);
-	let writeOpen = $state(false);
-
-	// Writing needs a writer service and a spool to write. Filaments can hold
-	// tags, but there is no filament payload format, so they link only.
-	const canWrite = $derived(kind === 'spool' && !!spool && nfcWriter.usable);
 	let pending = $state<Tag | null>(null);
 	let unlinking = $state(false);
 
@@ -74,12 +60,6 @@
 <SectionLabel>
 	{m['tags.section']()}
 	{#snippet right()}
-		{#if canWrite}
-			<button class="link" onclick={() => (writeOpen = true)}>
-				<PenLine size={13} />
-				{m['nfc.writeAction']()}
-			</button>
-		{/if}
 		<button class="link" onclick={() => (addOpen = true)}>
 			<Plus size={13} />
 			{m['tags.add']()}
@@ -111,10 +91,6 @@
 {/if}
 
 <AddTagModal open={addOpen} {kind} {id} onclose={() => (addOpen = false)} />
-
-{#if canWrite}
-	<NfcWriteDialog open={writeOpen} {spool} {kind} {id} onclose={() => (writeOpen = false)} />
-{/if}
 
 <ConfirmDialog
 	open={pending !== null}

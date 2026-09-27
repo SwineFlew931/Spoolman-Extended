@@ -17,32 +17,47 @@
 // server-side call that wrote and bound together; splitting it costs a second
 // round trip and buys the whole backend staying vanilla.
 
-// Where the writer service lives. It is a different origin from Spoolman — a
-// different port on the same host, normally — so this cannot be a relative path
-// and the service has to allow this origin with CORS.
+// Where the writer service lives, as a path on *this* origin.
 //
-// Resolved at runtime rather than baked in at build time, because the built
-// client is copied between installs and rebuilding it to change a port is a poor
-// trade. Precedence: an explicit build-time value, then an operator override in
-// localStorage, then the same host on the default port.
-const DEFAULT_PORT = 7914;
+// It must be same-origin, and that is not a stylistic preference — an earlier
+// version addressed the service directly as `http://<host>:7914` and browsers
+// simply refused to send the request:
+//
+//     net::ERR_BLOCKED_BY_CLIENT
+//
+// That is not CORS, which was configured correctly and verified. It is the
+// browser declining to call a bare IP:port from a page at all: ad-block and
+// privacy lists carry anti-port-scanning rules matching exactly that shape, and
+// private-network-access hardening and enterprise policy do the same. Measured
+// side by side in one page load: `:7914/status` blocked, `/nfcwriter/status`
+// returned 200. No server-side change can fix the first case, because the
+// request never leaves the browser.
+//
+// So a reverse proxy puts both services on one origin, and this is a relative
+// path. A consequence worth knowing: reaching Spoolman directly on its own port,
+// bypassing the proxy, means these paths 404 and tag writing is quietly not
+// offered — which is the correct behaviour, just not an obvious one.
+const DEFAULT_PATH = '/nfcwriter';
 
 function resolveBase(): string {
 	const env = import.meta.env.VITE_NFC_WRITER_URL as string | undefined;
 	if (env) return env.replace(/\/+$/, '');
 	if (typeof window === 'undefined') return '';
+	// An override for an install that proxies the service somewhere else. Still
+	// expected to be same-origin; an absolute URL to another port will be blocked
+	// for the reason above.
 	try {
 		const saved = window.localStorage.getItem('nfcWriterUrl');
 		if (saved) return saved.replace(/\/+$/, '');
 	} catch {
 		/* storage blocked; fall through to the default */
 	}
-	return `${window.location.protocol}//${window.location.hostname}:${DEFAULT_PORT}`;
+	return DEFAULT_PATH;
 }
 
 export const WRITER_BASE: string = resolveBase();
 
-/** Whether a writer service is configured at all. False while server-rendering. */
+/** Whether there is a base to call at all. False only while server-rendering. */
 export function writerConfigured(): boolean {
 	return WRITER_BASE !== '';
 }
@@ -153,7 +168,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 		// this origin" both surface as a TypeError with no status. Distinguished
 		// here so the dialog can say which, since the fixes are different.
 		if ((err as Error)?.name === 'AbortError') throw err;
-		throw new NfcWriterError(`writer service unreachable at ${WRITER_BASE}`, UNREACHABLE);
+		throw new NfcWriterError(`no tag writer at ${WRITER_BASE} on this origin`, UNREACHABLE);
 	}
 	return (await ensureOk(res, path)).json() as Promise<T>;
 }
