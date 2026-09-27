@@ -44,6 +44,18 @@ logging.basicConfig(level=logging.INFO, format="%(name)-18s %(levelname)-8s %(me
 logger = logging.getLogger("nfcwriter")
 
 
+# Set when the server is shutting down, so the event streams can end.
+#
+# Without this the service cannot be stopped cleanly, and the consequence is
+# hardware-level: `/events` is an endless generator, so uvicorn waits forever for
+# the connection to close, systemd gives up and sends SIGKILL, and SIGKILL skips
+# the shutdown below -- leaving the reader neither released nor closed. A PN532
+# left that way stops answering at all and needs its power cycled, which no
+# amount of restarting fixes. Ending these streams is what makes a restart safe,
+# not a tidiness measure.
+_shutting_down: asyncio.Event | None = None
+
+
 @contextlib.asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Run the reader for as long as the server is up.
@@ -55,6 +67,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         None: While the server runs.
 
     """
+    global _shutting_down  # noqa: PLW0603 - one per process, created on the running loop
+    _shutting_down = asyncio.Event()
     bus.bind(asyncio.get_running_loop())
     service.start()
     logger.info("nfcwriter listening on %s:%d", config.HOST, config.PORT)
@@ -64,6 +78,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        # Ends the event streams first, so uvicorn can close their connections
+        # and actually reach the reader shutdown below, rather than being killed
+        # while waiting and skipping it.
+        if _shutting_down is not None:
+            _shutting_down.set()
         task.cancel()
         service.stop()
 
@@ -341,16 +360,30 @@ async def _next_frame(queue: asyncio.Queue[dict[str, Any]]) -> str:
         queue: This listener's event queue.
 
     Returns:
-        An SSE frame, or a comment line when nothing arrived in time. The comment
+        An SSE frame, a comment line when nothing arrived in time, or an empty
+        string when the server is shutting down and the stream should end. The comment
         keeps proxies from closing an idle stream, and needs no handling in the
         client the way a synthetic event would.
 
     """
+    getter = asyncio.ensure_future(queue.get())
+    closing = asyncio.ensure_future(_shutting_down.wait()) if _shutting_down else None
+    waits = {getter} | ({closing} if closing is not None else set())
     try:
-        async with asyncio.timeout(config.KEEPALIVE_INTERVAL):
-            return _frame(await queue.get())
-    except TimeoutError:
+        done, _ = await asyncio.wait(
+            waits,
+            timeout=config.KEEPALIVE_INTERVAL,
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if getter in done:
+            return _frame(getter.result())
+        if closing is not None and closing in done:
+            return ""
         return ": keepalive\n\n"
+    finally:
+        for pending in waits:
+            if not pending.done():
+                pending.cancel()
 
 
 async def _stream() -> AsyncIterator[str]:
@@ -361,11 +394,16 @@ async def _stream() -> AsyncIterator[str]:
 
     """
     async with bus.listen() as queue:
-        last = bus.last_status()
+        last = bus.last_status
         if last is not None:
             yield _frame(last)
         while True:
-            yield await _next_frame(queue)
+            frame = await _next_frame(queue)
+            if not frame:
+                # Shutting down. Ending the generator lets uvicorn close this
+                # connection, which is what allows the reader to be released.
+                return
+            yield frame
 
 
 @app.get("/events")
