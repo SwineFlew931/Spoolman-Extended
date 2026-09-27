@@ -143,3 +143,52 @@ def test_the_generated_serial_fits_the_field_exactly():
     # Microsecond epoch is 16 digits, which is the field width.
     payload = ot.from_spool(_spool(), BuildContext(serial_id="1788341713905417"))
     assert ot.OpenTag3D.unpack(payload.records[0].payload).serial_batch_id == "1788341713905417"
+
+
+class TestAbbreviate:
+    """The modifier field is five bytes, and a truncated word lies.
+
+    "Tri Color Silk" cut to five reads "Tri C", which looks like a whole value
+    to anything reading the tag back. Every path here has to produce something
+    recognisable as a short form instead.
+    """
+
+    def test_a_value_that_fits_is_left_exactly_as_it_is(self):
+        notes = []
+        assert ot.abbreviate("Basic", ot.MATERIAL_LEN, notes) == "Basic"
+        assert notes == [], "nothing was given up, so there is nothing to report"
+
+    def test_a_known_subtype_uses_its_short_form(self):
+        notes = []
+        assert ot.abbreviate("Dual Color Silk", ot.MATERIAL_LEN, notes) == "DCS"
+        assert "written as 'DCS'" in notes[0]
+
+    def test_the_lookup_ignores_case(self):
+        assert ot.abbreviate("TRI COLOR SILK", ot.MATERIAL_LEN, []) == "TCS"
+
+    def test_industry_short_forms_are_preferred_over_initials(self):
+        # "CF" is what the spool is labelled; "CF" beats deriving something else.
+        assert ot.abbreviate("Carbon Fiber", ot.MATERIAL_LEN, []) == "CF"
+        assert ot.abbreviate("Glass Fibre", ot.MATERIAL_LEN, []) == "GF"
+
+    def test_an_unknown_multi_word_value_becomes_initials(self):
+        assert ot.abbreviate("Extra Sparkly Stuff", ot.MATERIAL_LEN, []) == "ESS"
+
+    def test_a_listed_word_uses_the_table_not_the_fallback(self):
+        # "Sparkle" would squeeze to "Sprkl"; the table's "SPRKL" wins.
+        assert ot.abbreviate("Sparkle", ot.MATERIAL_LEN, []) == "SPRKL"
+
+    def test_an_unknown_single_word_keeps_its_first_letter_and_drops_vowels(self):
+        assert ot.abbreviate("Gossamer", ot.MATERIAL_LEN, []) == "Gssmr"
+
+    def test_anything_derived_is_still_cut_to_the_limit(self):
+        got = ot.abbreviate("Alpha Beta Gamma Delta Epsilon Zeta", ot.MATERIAL_LEN, [])
+        assert len(got) <= ot.MATERIAL_LEN
+
+    def test_a_vowel_only_tail_does_not_produce_an_empty_value(self):
+        assert ot.abbreviate("Aeiouae", ot.MATERIAL_LEN, []) == "A"
+
+    def test_every_listed_short_form_actually_fits(self):
+        too_long = {k: v for k, v in ot.MODIFIER_ABBREVIATIONS.items()
+                    if len(v) > ot.MATERIAL_LEN}
+        assert too_long == {}, "a short form longer than the field would be truncated in turn"

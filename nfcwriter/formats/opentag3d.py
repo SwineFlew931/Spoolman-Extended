@@ -18,6 +18,7 @@ The Core block ends at 0x70 and fits an NTAG213. The Extended block runs to
 """
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -265,6 +266,76 @@ def split_material(material: str | None) -> tuple[str, str]:
     return raw[:MATERIAL_LEN], ""
 
 
+# Readable subtype -> the short form to write when the field cannot hold it.
+#
+# material_modifiers is five bytes, so "Dual Color Silk" would otherwise reach a
+# tag as "Dual " -- which is not merely shortened, it is wrong, since "Dual " and
+# "Dual Color Silk" are different things to anything reading the tag back.
+#
+# Where the industry already has a short form, that is the one used: CF and GF
+# are what a spool of carbon- or glass-filled filament is labelled, so a tag
+# saying "CF" is legible to someone who has never seen this library. The rest are
+# initials for multi-word names and a vowel-squeeze for single words, which is
+# what `abbreviate` falls back to for anything not listed here.
+MODIFIER_ABBREVIATIONS = {
+    "dual color silk": "DCS",
+    "tri color silk": "TCS",
+    "dual color": "DC",
+    "tri color": "TC",
+    "sparkle": "SPRKL",
+    "snapspeed": "SNSPD",
+    "panchroma": "PNCHR",
+    "carbon fiber": "CF",
+    "carbon fibre": "CF",
+    "glass fiber": "GF",
+    "glass fibre": "GF",
+    "high flow": "HF",
+    "high speed": "HS",
+    "flame retardant": "FR",
+    "glow in the dark": "GLOW",
+    "translucent": "TRANS",
+    "transparent": "TRANS",
+    "metallic": "METAL",
+}
+
+
+def abbreviate(value: str, limit: int, notes: list[str]) -> str:
+    """Fit a subtype into the tag's field without lying about what it says.
+
+    Blind truncation is the thing to avoid: "Tri Color Silk" cut to five bytes
+    reads "Tri C", which looks like a complete word and is not. A known short
+    form is used where one exists, then initials for a multi-word name, then a
+    vowel-squeeze -- each of which a reader can recognise as an abbreviation.
+
+    Args:
+        value: The subtype as the library spells it.
+        limit: Bytes the field holds.
+        notes: Collects a note when the value had to be shortened.
+
+    Returns:
+        str: Something that fits.
+
+    """
+    text = (value or "").strip()
+    if len(text) <= limit:
+        return text
+
+    short = MODIFIER_ABBREVIATIONS.get(text.casefold())
+    if short is None:
+        words = text.split()
+        if len(words) > 1:
+            short = "".join(word[0] for word in words).upper()
+        else:
+            # Keep the first letter whatever it is, drop vowels from the rest:
+            # "Sparkle" -> "Sprkl", which is still readable as the original.
+            short = text[0] + re.sub(r"[aeiou]", "", text[1:], flags=re.IGNORECASE)
+    short = short[:limit]
+    notes.append(
+        f"The tag's modifier field holds {limit} characters, so {text!r} is written as {short!r}.",
+    )
+    return short
+
+
 def fit_url(url: str, notes: list[str]) -> str:
     """Keep a URL only if it fits whole.
 
@@ -292,7 +363,7 @@ def fit_url(url: str, notes: list[str]) -> str:
     return url
 
 
-def _modifier_for(spool: Spool, suffix: str) -> str:
+def _modifier_for(spool: Spool, suffix: str, notes: list[str]) -> str:
     """Pick the modifier field's value.
 
     A filament's own variant or subtype wins over whatever the material name
@@ -301,6 +372,7 @@ def _modifier_for(spool: Spool, suffix: str) -> str:
     Args:
         spool: The spool being written.
         suffix: The modifier implied by the material name.
+        notes: Collects a note when the value has to be abbreviated.
 
     Returns:
         str: The modifier, fitted to the field.
@@ -312,7 +384,9 @@ def _modifier_for(spool: Spool, suffix: str) -> str:
         if raw:
             cleaned = str(raw).strip('"').strip()
             if cleaned:
-                return cleaned[:MATERIAL_LEN]
+                return abbreviate(cleaned, MATERIAL_LEN, notes)
+    # A suffix comes from the material name itself and is already short; it is
+    # not abbreviated, because there is nothing to tell the user about.
     return suffix[:MATERIAL_LEN]
 
 
@@ -358,7 +432,7 @@ def from_spool(spool: Spool, context: BuildContext) -> TagPayload:
 
     tag = OpenTag3D(
         base_material=base,
-        material_modifiers=_modifier_for(spool, suffix),
+        material_modifiers=_modifier_for(spool, suffix, notes),
         manufacturer=(filament.vendor.name if filament.vendor else "")[:MANUFACTURER_LEN],
         color_name=(filament.name or "")[:COLOR_NAME_LEN],
         color1=hex_to_rgba(filament.color_hex),
